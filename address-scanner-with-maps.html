@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#14181f">
+<title>Address Scanner With Maps</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#14181f;          /* asphalt */
+    --panel:#1d232d;       /* van interior grey */
+    --panel-2:#242b37;
+    --line:#313a48;
+    --ink:#f2f4f7;
+    --ink-dim:#9aa5b4;
+    --amber:#ffb300;       /* hi-vis amber */
+    --amber-ink:#1a1200;
+    --green:#3ddc84;
+    --red:#ff5d5d;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.45;
+    padding-bottom:110px;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:14px 14px 0}
+
+  /* Header */
+  header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+  .brand{font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:15px}
+  .brand em{color:var(--amber);font-style:normal}
+  .count-chip{font-variant-numeric:tabular-nums;font-weight:700;font-size:13px;color:var(--ink-dim);letter-spacing:.06em;text-transform:uppercase}
+  .count-chip b{color:var(--ink);font-size:15px}
+
+  /* Scan status strip — flashes on each capture, like a scan-gun beep */
+  #scanStrip{
+    border-radius:var(--radius);
+    background:var(--panel);
+    border:1px solid var(--line);
+    padding:10px 14px;margin-bottom:12px;
+    font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12px;
+    color:var(--ink-dim);
+    display:flex;align-items:center;gap:10px;
+    transition:background .15s ease,color .15s ease,border-color .15s ease;
+  }
+  #scanStrip .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-dim);flex:none;transition:background .15s ease}
+  #scanStrip.live .dot{background:var(--green);animation:pulse 1.4s infinite}
+  #scanStrip.hit{background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
+  #scanStrip.hit .dot{background:var(--amber-ink)}
+  #scanStrip.dup{background:var(--panel-2);color:var(--amber)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){#scanStrip.live .dot{animation:none}}
+
+  /* Camera */
+  #reader{border-radius:var(--radius);overflow:hidden;background:#000;display:none;margin-bottom:12px;border:1px solid var(--line)}
+  #reader video{border-radius:var(--radius)}
+
+  /* Panels */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+  .panel h2{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:10px}
+
+  label{display:block;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin:10px 0 4px}
+  input[type=text], textarea{
+    width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    color:var(--ink);padding:11px 12px;font-size:16px;
+  }
+  input[type=text]:focus, textarea:focus{outline:2px solid var(--amber);outline-offset:0;border-color:var(--amber)}
+  textarea{min-height:74px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+  input[type=file]{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--ink-dim);padding:10px;font-size:14px}
+  #camHelpText{color:var(--ink);font-size:14px;line-height:1.5}
+  #camHelpText b{color:var(--amber)}
+
+  /* Buttons */
+  button{font:inherit;border:none;border-radius:12px;cursor:pointer;font-weight:700}
+  .btn{width:100%;padding:14px;font-size:16px;letter-spacing:.02em}
+  .btn-amber{background:var(--amber);color:var(--amber-ink)}
+  .btn-ghost{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  .btn-row{display:flex;gap:8px}
+  .btn-row .btn{width:auto;flex:1}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.45;pointer-events:none}
+  button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+  /* Stop list — the run sheet */
+  #stopList{list-style:none}
+  .stop{
+    display:flex;gap:12px;align-items:flex-start;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:12px;margin-bottom:8px;
+  }
+  .stop .seq{
+    flex:none;width:38px;height:38px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:16px;font-variant-numeric:tabular-nums;
+    background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line);
+  }
+  .stop.routed .seq{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+  .stop .body{flex:1;min-width:0}
+  .stop .street{font-weight:700;font-size:16px}
+  .stop .sub{color:var(--ink-dim);font-size:13px;letter-spacing:.03em;text-transform:uppercase;margin-top:1px}
+  .stop .flag{color:var(--red);font-size:12px;font-weight:700;margin-top:2px}
+  .stop .acts{display:flex;flex-direction:column;gap:6px;flex:none}
+  .mini{padding:7px 12px;font-size:13px;border-radius:9px}
+  .mini.go{background:var(--amber);color:var(--amber-ink)}
+  .mini.edit{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  .mini.del{background:transparent;color:var(--ink-dim);border:1px solid var(--line)}
+
+  .empty{
+    border:1px dashed var(--line);border-radius:var(--radius);
+    padding:22px 16px;text-align:center;color:var(--ink-dim);font-size:14px;margin-bottom:12px;
+  }
+
+  /* Route legs */
+  #legs .btn{margin-bottom:8px}
+  .note{font-size:13px;color:var(--ink-dim);margin-top:8px}
+  .progress{font-size:13px;color:var(--amber);font-weight:700;margin-top:8px;display:none}
+
+  /* Sticky action bar */
+  .dock{
+    position:fixed;left:0;right:0;bottom:0;
+    background:linear-gradient(to top, var(--bg) 70%, transparent);
+    padding:10px 14px 16px;
+  }
+  .dock-inner{max-width:560px;margin:0 auto;display:flex;gap:8px}
+  .dock .btn{flex:1;padding:15px}
+
+  /* Edit sheet */
+  #sheetBack{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:20}
+  #sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:21;display:none;
+    background:var(--panel);border-top:2px solid var(--amber);
+    border-radius:18px 18px 0 0;padding:18px 16px 26px;max-width:560px;margin:0 auto;
+  }
+  #sheet h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:4px}
+  #sheet .btn-row{margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Address <em>Scanner</em> With Maps</div>
+    <div class="count-chip"><b id="stopCount">0</b> stops</div>
+  </header>
+
+  <div id="scanStrip"><span class="dot"></span><span id="scanMsg">Camera off</span></div>
+  <div id="reader"></div>
+
+  <div class="btn-row" style="margin-bottom:12px">
+    <button class="btn btn-amber" id="btnScan">Start scanning</button>
+    <button class="btn btn-ghost" id="btnManual">Add by hand</button>
+  </div>
+
+  <div class="panel" id="camHelp" style="display:none">
+    <h2>Camera</h2>
+    <div id="camHelpText"></div>
+    <label for="fileInput">Or read a photo of the label</label>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <div class="panel" id="manualPanel" style="display:none">
+    <h2>Add a stop</h2>
+    <label for="pasteRaw">Paste QR text (auto-reads the address)</label>
+    <textarea id="pasteRaw" placeholder="Paste the raw label data here..."></textarea>
+    <button class="btn btn-ghost" style="margin-top:8px" id="btnParsePaste">Read pasted label</button>
+    <label for="manStreet">Or type it — street</label>
+    <input type="text" id="manStreet" placeholder="278 Bambra Rd" autocomplete="off">
+    <label for="manSuburb">Suburb</label>
+    <input type="text" id="manSuburb" placeholder="Caulfield South" autocomplete="off">
+    <label for="manPostcode">Postcode</label>
+    <input type="text" id="manPostcode" placeholder="3162" inputmode="numeric" autocomplete="off">
+    <button class="btn btn-amber" style="margin-top:12px" id="btnManAdd">Add stop</button>
+  </div>
+
+  <div class="panel">
+    <h2>Depot (route ends here)</h2>
+    <input type="text" id="depot" placeholder="e.g. 44 Depot Rd, Sunshine West 3020" autocomplete="off">
+  </div>
+
+  <ul id="stopList"></ul>
+  <div class="empty" id="emptyMsg">No stops yet. Scan a label or add one by hand — every address lands here in your list.</div>
+
+  <div class="panel" id="routePanel" style="display:none">
+    <h2>Route</h2>
+    <div id="legs"></div>
+    <div class="note">Google Maps takes about 10 stops per trip, so long runs are split into legs. Finish a leg, come back, tap the next one. Each leg starts from wherever you are.</div>
+  </div>
+
+  <div class="progress" id="prog"></div>
+</div>
+
+<div class="dock">
+  <div class="dock-inner">
+    <button class="btn btn-amber" id="btnOptimise" disabled>Optimise route</button>
+    <button class="btn btn-ghost" id="btnClear" disabled>Clear run</button>
+  </div>
+</div>
+
+<div id="sheetBack"></div>
+<div id="sheet">
+  <h3 id="sheetTitle">Check this stop</h3>
+  <label for="edStreet">Street</label>
+  <input type="text" id="edStreet" autocomplete="off">
+  <label for="edSuburb">Suburb</label>
+  <input type="text" id="edSuburb" autocomplete="off">
+  <label for="edPostcode">Postcode</label>
+  <input type="text" id="edPostcode" inputmode="numeric" autocomplete="off">
+  <div class="btn-row">
+    <button class="btn btn-amber" id="edSave">Save stop</button>
+    <button class="btn btn-ghost" id="edCancel">Discard</button>
+  </div>
+</div>
+
+<script>
+/* ================= State ================= */
+let stops = [];            // {id, street, suburb, postcode, lat, lng, unlocated, seq}
+let routed = false;
+let scanner = null, scanning = false;
+let lastScanText = "", lastScanAt = 0;
+let editingIndex = null;   // null = adding new via sheet
+let pendingStop = null;
+let nextId = 1;
+
+const $ = id => document.getElementById(id);
+
+/* ================= Label parsing ================= */
+const STREET_TYPES = "RD|ROAD|ST|STREET|AVE?|AVENUE|CT|COURT|CRES|CRESCENT|CR|DR|DRIVE|PDE|PARADE|GR|GROVE|PL|PLACE|WAY|HWY|HIGHWAY|CL|CLOSE|LANE|LN|BVD|BLVD|BOULEVARD|TCE|TERRACE|CCT|CIRCUIT|ESP|ESPLANADE|GDNS?|GARDENS?|SQ|SQUARE|WALK|WK|MEWS|RISE|VIEW|GLEN|COVE|CHASE|LOOP|TRACK|TRK|PROM|PROMENADE|QUAY|VISTA|BEND|GATE|ENT|ENTRANCE|CIRCLE|CIR|CORSO|MALL|ARC|ARCADE|ROW|STRIP|BROADWAY|FWY|FREEWAY|PKWY|PARKWAY|BYPASS";
+
+function parseLabel(raw){
+  const text = String(raw).replace(/[\r\n]+/g, " ");
+  let suburb = "", postcode = "", street = "", conNote = "";
+
+  // Suburb padded to a fixed width, then a 4-digit postcode, then IDs
+  const head = text.match(/^\s*([A-Z][A-Z' .-]*[A-Z.])\s*(\d{4})(?=[A-Z0-9 ])/i);
+  if (head){ suburb = head[1].trim(); postcode = head[2]; }
+
+  // Consignment/article ID (used to catch duplicate scans)
+  const con = text.match(/\b([A-Z]{3,4}\d{7,10})\b/);
+  if (con) conNote = con[1];
+
+  // Street address: number (with optional unit like 2/15) + name + street type
+  const streetRe = new RegExp(
+    "\\b(\\d+[A-Za-z]?(?:[\\/-]\\d+[A-Za-z]?)?\\s+[A-Z][A-Za-z' .-]*?\\s(?:" + STREET_TYPES + "))\\b",
+  );
+  const s = text.match(streetRe);
+  if (s) street = s[1].replace(/\s+/g, " ").trim();
+
+  // Unit prefix directly before the match, e.g. "U 5 278 BAMBRA RD" or "UNIT 5"
+  if (street){
+    const idx = text.indexOf(s[1]);
+    const before = text.slice(Math.max(0, idx - 14), idx);
+    const unit = before.match(/(?:UNIT|U|APT|FLAT|SHOP|LVL|LEVEL)\s*\d+[A-Za-z]?\s*$/i);
+    if (unit) street = unit[0].trim() + " " + street;
+  }
+
+  if (!street && !suburb) return null;
+  return { street, suburb, postcode, con: conNote };
+}
+
+/* ================= Scan handling ================= */
+function flashStrip(mode, msg){
+  const strip = $("scanStrip");
+  strip.classList.remove("hit","dup");
+  void strip.offsetWidth; // restart transition
+  if (mode) strip.classList.add(mode);
+  $("scanMsg").textContent = msg;
+  if (mode === "hit" && navigator.vibrate) navigator.vibrate(60);
+  if (mode) setTimeout(()=> strip.classList.remove("hit","dup"), 900);
+}
+
+function onScan(decodedText){
+  const now = Date.now();
+  if (decodedText === lastScanText && now - lastScanAt < 3500) return; // same code still in frame
+  lastScanText = decodedText; lastScanAt = now;
+
+  const parsed = parseLabel(decodedText);
+  if (!parsed){
+    flashStrip("dup", "Couldn't read that label — try Add by hand");
+    return;
+  }
+  if (isDuplicate(parsed)){
+    flashStrip("dup", "Already on the run: " + (parsed.street || parsed.suburb));
+    return;
+  }
+  if (parsed.street){
+    addStop(parsed);
+    flashStrip("hit", "Added: " + parsed.street + (parsed.suburb ? ", " + parsed.suburb : ""));
+  } else {
+    // Got suburb but no street — hold it and ask
+    pendingStop = parsed;
+    openSheet(null, parsed, "Scan needs a street — check this stop");
+  }
+}
+
+function isDuplicate(p){
+  return stops.some(st =>
+    (p.con && st.con && st.con === p.con) ||
+    (p.street && st.street.toUpperCase() === p.street.toUpperCase() &&
+     st.suburb.toUpperCase() === (p.suburb||"").toUpperCase())
+  );
+}
+
+function camHelp(html){
+  $("camHelp").style.display = "block";
+  $("camHelpText").innerHTML = html;
+}
+
+function handleCamError(err){
+  const name = (err && err.name) || "";
+  stopScanner();
+  if (name === "NotAllowedError" || name === "PermissionDeniedError"){
+    flashStrip("dup", "Camera permission was blocked");
+    camHelp("The phone blocked camera access for this site. To switch it back on:<br><br>" +
+      "<b>Android (Chrome):</b> tap the icon left of the address bar, then Permissions, then allow Camera. Reload the page.<br><br>" +
+      "<b>iPhone (Safari):</b> tap <b>aA</b> in the address bar, then Website Settings, then set Camera to Allow. Reload the page.");
+  } else if (name === "NotFoundError" || name === "DevicesNotFoundError"){
+    flashStrip("dup", "No camera found on this device");
+    camHelp("No camera was found. Use the photo option below instead.");
+  } else if (name === "NotReadableError" || name === "TrackStartError"){
+    flashStrip("dup", "Camera is busy");
+    camHelp("Another app is already using the camera. Close it, then try again.");
+  } else {
+    flashStrip("dup", "Camera failed to start");
+    camHelp("The camera would not start (" + (name || "unknown error") + "). Try reloading the page, or use the photo option below.");
+  }
+}
+
+async function startScanner(){
+  if (scanning) { stopScanner(); return; }
+
+  // Camera is only allowed on an https link
+  if (!window.isSecureContext){
+    flashStrip("dup", "Camera needs an https link");
+    camHelp("This page is open over <b>" + location.protocol + "</b>. Phone browsers only allow the camera on an <b>https://</b> address, so opening the file straight from Downloads will not work. Put it on GitHub Pages and open that link instead.");
+    return;
+  }
+
+  // Preview panes and embedded frames block the camera
+  if (window.self !== window.top){
+    flashStrip("dup", "Open the app in its own tab");
+    camHelp("The app is running inside a preview frame, which blocks the camera. Open the hosted link directly as its own browser tab.");
+    return;
+  }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    flashStrip("dup", "This browser has no camera access");
+    camHelp("This browser does not give web pages a camera. Use <b>Chrome</b> on Android or <b>Safari</b> on iPhone.");
+    return;
+  }
+
+  // Ask the phone directly — this is what raises the permission popup
+  $("scanMsg").textContent = "Asking for camera permission...";
+  let stream = null;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+  } catch(err){
+    handleCamError(err);
+    return;
+  }
+  stream.getTracks().forEach(t => t.stop()); // hand the camera to the scanner
+
+  $("camHelp").style.display = "none";
+  $("reader").style.display = "block";
+  $("btnScan").textContent = "Stop camera";
+  try{
+    scanner = new Html5Qrcode("reader");
+    await scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      onScan,
+      () => {} // per-frame misses, ignore
+    );
+    scanning = true;
+    $("scanStrip").classList.add("live");
+    $("scanMsg").textContent = "Scanning — point at the QR code";
+  } catch (err){
+    handleCamError(err);
+  }
+}
+
+function stopScanner(){
+  if (scanner){ scanner.stop().catch(()=>{}); scanner = null; }
+  scanning = false;
+  $("reader").style.display = "none";
+  $("btnScan").textContent = "Start scanning";
+  $("scanStrip").classList.remove("live");
+  $("scanMsg").textContent = "Camera off";
+}
+
+/* ================= Stop list ================= */
+function addStop(p){
+  stops.push({
+    id: nextId++,
+    street: tidy(p.street), suburb: tidy(p.suburb), postcode: p.postcode || "",
+    con: p.con || "", lat: null, lng: null, unlocated: false
+  });
+  routed = false;
+  render();
+}
+
+function tidy(s){
+  return String(s||"").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).trim();
+}
+
+function stopLabel(st){
+  return [st.street, st.suburb, st.postcode].filter(Boolean).join(", ");
+}
+
+function render(){
+  const list = $("stopList");
+  list.innerHTML = "";
+  stops.forEach((st, i) => {
+    const li = document.createElement("li");
+    li.className = "stop" + (routed ? " routed" : "");
+    li.innerHTML =
+      '<div class="seq">' + (i+1) + '</div>' +
+      '<div class="body">' +
+        '<div class="street">' + esc(st.street || "(no street)") + '</div>' +
+        '<div class="sub">' + esc([st.suburb, st.postcode].filter(Boolean).join(" ")) + '</div>' +
+        (st.unlocated ? '<div class="flag">Couldn\u2019t place on map — check the address</div>' : '') +
+      '</div>' +
+      '<div class="acts">' +
+        '<button class="mini go" data-go="'+i+'">Go</button>' +
+        '<button class="mini edit" data-edit="'+i+'">Edit</button>' +
+        '<button class="mini del" data-del="'+i+'">✕</button>' +
+      '</div>';
+    list.appendChild(li);
+  });
+  $("emptyMsg").style.display = stops.length ? "none" : "block";
+  $("stopCount").textContent = stops.length;
+  $("btnOptimise").disabled = stops.length < 2;
+  $("btnClear").disabled = stops.length === 0;
+  if (!routed) $("routePanel").style.display = "none";
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+$("stopList").addEventListener("click", e => {
+  const go = e.target.getAttribute("data-go");
+  const ed = e.target.getAttribute("data-edit");
+  const del = e.target.getAttribute("data-del");
+  if (go !== null){
+    const st = stops[+go];
+    window.open("https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+      encodeURIComponent(stopLabel(st) + ", Australia"), "_blank");
+  } else if (ed !== null){
+    openSheet(+ed);
+  } else if (del !== null){
+    stops.splice(+del, 1);
+    routed = false;
+    render();
+  }
+});
+
+/* ================= Edit sheet ================= */
+function openSheet(index, prefill, title){
+  editingIndex = index;
+  const src = index !== null ? stops[index] : (prefill || {});
+  $("sheetTitle").textContent = title || (index !== null ? "Edit stop" : "Add stop");
+  $("edStreet").value = src.street || "";
+  $("edSuburb").value = src.suburb || "";
+  $("edPostcode").value = src.postcode || "";
+  $("sheetBack").style.display = "block";
+  $("sheet").style.display = "block";
+}
+function closeSheet(){
+  $("sheetBack").style.display = "none";
+  $("sheet").style.display = "none";
+  editingIndex = null; pendingStop = null;
+}
+$("edCancel").addEventListener("click", closeSheet);
+$("sheetBack").addEventListener("click", closeSheet);
+$("edSave").addEventListener("click", () => {
+  const street = $("edStreet").value.trim();
+  const suburb = $("edSuburb").value.trim();
+  const postcode = $("edPostcode").value.trim();
+  if (!street){ $("edStreet").focus(); return; }
+  if (editingIndex !== null){
+    const st = stops[editingIndex];
+    st.street = tidy(street); st.suburb = tidy(suburb); st.postcode = postcode;
+    st.lat = null; st.lng = null; st.unlocated = false;
+  } else {
+    addStop({ street, suburb, postcode, con: (pendingStop && pendingStop.con) || "" });
+  }
+  routed = false;
+  closeSheet();
+  render();
+});
+
+/* ================= Manual add panel ================= */
+$("btnManual").addEventListener("click", () => {
+  const p = $("manualPanel");
+  p.style.display = p.style.display === "none" ? "block" : "none";
+});
+$("btnParsePaste").addEventListener("click", () => {
+  const parsed = parseLabel($("pasteRaw").value);
+  if (!parsed){ flashStrip("dup", "Couldn't read that text"); return; }
+  $("manStreet").value = parsed.street || "";
+  $("manSuburb").value = parsed.suburb || "";
+  $("manPostcode").value = parsed.postcode || "";
+});
+$("btnManAdd").addEventListener("click", () => {
+  const street = $("manStreet").value.trim();
+  if (!street){ $("manStreet").focus(); return; }
+  const p = { street, suburb: $("manSuburb").value.trim(), postcode: $("manPostcode").value.trim() };
+  if (isDuplicate(p)){ flashStrip("dup", "Already on the run"); return; }
+  addStop(p);
+  $("manStreet").value = ""; $("manSuburb").value = ""; $("manPostcode").value = ""; $("pasteRaw").value = "";
+  flashStrip("hit", "Added: " + street);
+});
+
+/* ================= Geocoding (Nominatim, free, ~1 req/sec) ================= */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function geocodeOne(q){
+  const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=au&q=" +
+              encodeURIComponent(q);
+  const res = await fetch(url, { headers: { "Accept": "application/json" } });
+  if (!res.ok) throw new Error("geocode http " + res.status);
+  const data = await res.json();
+  if (data && data.length) return { lat: +data[0].lat, lng: +data[0].lon };
+  return null;
+}
+
+async function geocodeStop(st){
+  if (st.lat !== null) return true;
+  const attempts = [
+    stopLabel(st) + ", Australia",
+    [st.suburb, st.postcode, "Australia"].filter(Boolean).join(", ")
+  ];
+  for (const q of attempts){
+    try{
+      const hit = await geocodeOne(q);
+      if (hit){ st.lat = hit.lat; st.lng = hit.lng; st.unlocated = (q === attempts[1]); return true; }
+    } catch(e){ /* fall through */ }
+    await sleep(1100);
+  }
+  st.unlocated = true;
+  return false;
+}
+
+/* ================= Route optimisation ================= */
+function dist(a, b){
+  const R = 6371, toR = Math.PI/180;
+  const dLat = (b.lat - a.lat) * toR, dLng = (b.lng - a.lng) * toR;
+  const h = Math.sin(dLat/2)**2 + Math.cos(a.lat*toR) * Math.cos(b.lat*toR) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function optimiseOrder(points, depot){
+  // Nearest neighbour from the depot, then 2-opt, cost includes returning to depot
+  const n = points.length;
+  if (n < 3) return points.slice();
+  const unvisited = points.slice();
+  let cur = depot, order = [];
+  while (unvisited.length){
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < unvisited.length; i++){
+      const d = dist(cur, unvisited[i]);
+      if (d < bestD){ bestD = d; best = i; }
+    }
+    cur = unvisited.splice(best, 1)[0];
+    order.push(cur);
+  }
+  const cost = arr => {
+    let c = dist(depot, arr[0]);
+    for (let i = 0; i < arr.length - 1; i++) c += dist(arr[i], arr[i+1]);
+    return c + dist(arr[arr.length-1], depot);
+  };
+  let improved = true, guard = 0;
+  while (improved && guard++ < 60){
+    improved = false;
+    for (let i = 0; i < order.length - 1; i++){
+      for (let k = i + 1; k < order.length; k++){
+        const trial = order.slice(0, i).concat(order.slice(i, k+1).reverse(), order.slice(k+1));
+        if (cost(trial) < cost(order) - 1e-9){ order = trial; improved = true; }
+      }
+    }
+  }
+  return order;
+}
+
+$("btnOptimise").addEventListener("click", async () => {
+  const depotAddr = $("depot").value.trim();
+  if (!depotAddr){
+    flashStrip("dup", "Set the depot address first");
+    $("depot").focus();
+    return;
+  }
+  stopScanner();
+  const prog = $("prog");
+  prog.style.display = "block";
+  $("btnOptimise").disabled = true;
+
+  try{
+    prog.textContent = "Placing depot on the map...";
+    let depotPt = null;
+    try { depotPt = await geocodeOne(depotAddr + (/(australia)/i.test(depotAddr) ? "" : ", Australia")); } catch(e){}
+    if (!depotPt){
+      prog.style.display = "none";
+      flashStrip("dup", "Couldn't place the depot — check its address");
+      $("btnOptimise").disabled = false;
+      return;
+    }
+    await sleep(1100);
+
+    for (let i = 0; i < stops.length; i++){
+      prog.textContent = "Placing stop " + (i+1) + " of " + stops.length + "... (free map service, about 1 per second)";
+      await geocodeStop(stops[i]);
+    }
+
+    const located = stops.filter(s => s.lat !== null);
+    const lost = stops.filter(s => s.lat === null);
+    const ordered = optimiseOrder(located, depotPt);
+    stops = ordered.concat(lost);
+    routed = true;
+    render();
+    buildLegs(depotAddr);
+    prog.style.display = "none";
+    flashStrip("hit", "Route sorted — " + located.length + " stops, ending at depot");
+  } catch(err){
+    prog.style.display = "none";
+    flashStrip("dup", "Optimise failed — check signal and try again");
+  } finally {
+    $("btnOptimise").disabled = stops.length < 2;
+  }
+});
+
+/* ================= Google Maps hand-off ================= */
+function buildLegs(depotAddr){
+  const points = stops.map(stopLabel).map(s => s + ", Australia");
+  points.push(depotAddr + (/(australia)/i.test(depotAddr) ? "" : ", Australia")); // finish at depot
+  const legs = [];
+  let i = 0;
+  while (i < points.length){
+    const chunk = points.slice(i, i + 10); // 9 waypoints + destination
+    const dest = chunk[chunk.length - 1];
+    const wps = chunk.slice(0, -1);
+    let url = "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(dest);
+    if (wps.length) url += "&waypoints=" + encodeURIComponent(wps.join("|"));
+    const first = i + 1;
+    const last = Math.min(i + chunk.length, points.length);
+    const isFinal = last === points.length;
+    legs.push({
+      url,
+      label: isFinal
+        ? (chunk.length === 1 ? "Final leg: back to depot"
+           : "Leg " + (legs.length+1) + ": stops " + first + "\u2013" + (last-1) + ", then depot")
+        : "Leg " + (legs.length+1) + ": stops " + first + "\u2013" + last
+    });
+    i += chunk.length;
+  }
+  const box = $("legs");
+  box.innerHTML = "";
+  legs.forEach(l => {
+    const b = document.createElement("button");
+    b.className = "btn btn-amber";
+    b.textContent = l.label;
+    b.addEventListener("click", () => window.open(l.url, "_blank"));
+    box.appendChild(b);
+  });
+  $("routePanel").style.display = "block";
+}
+
+/* ================= Photo fallback ================= */
+$("fileInput").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  stopScanner();
+  $("reader").style.display = "block";
+  try{
+    const fileScanner = new Html5Qrcode("reader");
+    const text = await fileScanner.scanFile(f, false);
+    onScan(text);
+    await fileScanner.clear();
+  } catch(err){
+    flashStrip("dup", "No QR code found in that photo");
+  }
+  $("reader").style.display = "none";
+  $("reader").innerHTML = "";
+  e.target.value = "";
+});
+
+/* ================= Misc ================= */
+$("btnScan").addEventListener("click", startScanner);
+$("btnClear").addEventListener("click", () => {
+  if (!confirm("Clear all " + stops.length + " stops?")) return;
+  stops = []; routed = false;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
