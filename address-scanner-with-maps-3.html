@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14181f">
+<title>Address Scanner With Maps</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#14181f; --panel:#1d232d; --panel-2:#242b37; --line:#313a48;
+    --ink:#f2f4f7; --ink-dim:#9aa5b4;
+    --amber:#ffb300; --amber-ink:#1a1200;
+    --green:#3ddc84; --red:#ff5d5d; --blue:#5da8ff;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.45;padding-bottom:104px;
+  }
+  .wrap{max-width:600px;margin:0 auto;padding:14px 14px 0}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .brand{font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:15px}
+  .brand em{color:var(--amber);font-style:normal}
+  .headright{display:flex;align-items:center;gap:12px;flex:none}
+  .count-chip{font-variant-numeric:tabular-nums;font-weight:700;font-size:13px;color:var(--ink-dim);letter-spacing:.06em;text-transform:uppercase}
+  .count-chip b{color:var(--ink);font-size:15px}
+  .gps{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-dim);white-space:nowrap}
+  .gps i{width:8px;height:8px;border-radius:50%;background:var(--line);display:block;flex:none}
+  .gps.on{color:var(--blue)}
+  .gps.on i{background:var(--blue);box-shadow:0 0 0 3px rgba(93,168,255,.22)}
+
+  #scanStrip{
+    border-radius:var(--radius);background:var(--panel);border:1px solid var(--line);
+    padding:10px 14px;margin-bottom:12px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;font-size:12px;color:var(--ink-dim);
+    display:flex;align-items:center;gap:10px;
+    transition:background .15s ease,color .15s ease,border-color .15s ease;
+  }
+  #scanStrip .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-dim);flex:none;transition:background .15s ease}
+  #scanStrip.live .dot{background:var(--green);animation:pulse 1.4s infinite}
+  #scanStrip.hit{background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
+  #scanStrip.hit .dot{background:var(--amber-ink)}
+  #scanStrip.dup{background:var(--panel-2);color:var(--amber)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){#scanStrip.live .dot{animation:none}}
+
+  #reader{border-radius:var(--radius);overflow:hidden;background:#000;display:none;margin-bottom:12px;border:1px solid var(--line)}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+  .panel h2{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:10px}
+
+  label{display:block;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin:10px 0 4px}
+  input[type=text],textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:11px 12px;font-size:16px}
+  input[type=text]:focus,textarea:focus{outline:2px solid var(--amber);border-color:var(--amber)}
+  textarea{min-height:70px;resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+  input[type=file]{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--ink-dim);padding:10px;font-size:14px}
+  #camHelpText{color:var(--ink);font-size:14px;line-height:1.5}
+  #camHelpText b{color:var(--amber)}
+
+  button{font:inherit;border:none;border-radius:12px;cursor:pointer;font-weight:700}
+  .btn{width:100%;padding:14px;font-size:16px}
+  .btn-amber{background:var(--amber);color:var(--amber-ink)}
+  .btn-ghost{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  .btn-row{display:flex;gap:8px}
+  .btn-row .btn{width:auto;flex:1}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.45;pointer-events:none}
+  button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+  /* Tabs */
+  .tabs{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:5px;margin-bottom:12px}
+  .tab{flex:1;padding:10px;border-radius:10px;background:transparent;color:var(--ink-dim);font-size:14px;letter-spacing:.04em}
+  .tab.on{background:var(--amber);color:var(--amber-ink)}
+
+  /* Order switch */
+  .orderbar{display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap}
+  .pill{padding:8px 13px;border-radius:20px;font-size:13px;background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line)}
+  .pill.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+
+  /* Stop rows */
+  #stopList{list-style:none}
+  .stop{display:flex;gap:11px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:11px;margin-bottom:8px}
+  .stop .seq{flex:none;width:44px;text-align:center}
+  .stop .seq .num{
+    width:44px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:17px;font-variant-numeric:tabular-nums;
+    background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line);
+  }
+  .stop.routed .seq .num{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+  .stop .seq .parcel{font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--blue);margin-top:3px;text-transform:uppercase}
+  .stop .body{flex:1;min-width:0}
+  .stop .street{font-weight:700;font-size:16px}
+  .stop .sub{color:var(--ink-dim);font-size:13px;letter-spacing:.03em;text-transform:uppercase;margin-top:1px}
+  .stop .who{color:var(--ink-dim);font-size:13px;margin-top:2px}
+  .stop .flag{font-size:12px;font-weight:700;margin-top:3px}
+  .flag.warn{color:var(--red)} .flag.wait{color:var(--ink-dim)} .flag.twin{color:var(--blue)}
+  .stop .acts{display:flex;flex-direction:column;gap:5px;flex:none}
+  .mini{padding:7px 11px;font-size:13px;border-radius:9px}
+  .mini.go{background:var(--amber);color:var(--amber-ink)}
+  .mini.done{background:var(--green);color:#04240f}
+  .mini.edit{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  .mini.del{background:transparent;color:var(--ink-dim);border:1px solid var(--line)}
+
+  .empty{border:1px dashed var(--line);border-radius:var(--radius);padding:22px 16px;text-align:center;color:var(--ink-dim);font-size:14px;margin-bottom:12px}
+
+  /* Map */
+  #mapWrap{display:none;margin-bottom:12px}
+  #map{height:60vh;min-height:340px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel)}
+  .maptools{display:flex;gap:8px;margin-bottom:8px}
+  .maptools .mini{flex:1;text-align:center}
+  .pin{
+    width:30px;height:30px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);
+    background:var(--amber);border:2px solid #14181f;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);
+  }
+  .pin span{transform:rotate(45deg);font-weight:800;font-size:13px;color:var(--amber-ink);font-variant-numeric:tabular-nums}
+  .pin.depot{background:var(--blue);border-radius:50%;transform:none}
+  .pin.depot span{color:#04203f;font-size:11px;transform:none}
+  .pin.fresh{background:var(--green);width:38px;height:38px;animation:ping 1.2s ease-out infinite}
+  .pin.fresh span{font-size:15px;color:#04240f}
+  .pin.dim{background:#6b7686}
+  .pin.dim span{color:#e8ecf2}
+  @keyframes ping{
+    0%,100%{box-shadow:0 2px 6px rgba(0,0,0,.5),0 0 0 0 rgba(61,220,132,.5)}
+    50%{box-shadow:0 2px 6px rgba(0,0,0,.5),0 0 0 12px rgba(61,220,132,0)}
+  }
+  @media (prefers-reduced-motion:reduce){.pin.fresh{animation:none}}
+  .medot{width:16px;height:16px;border-radius:50%;background:var(--blue);border:2.5px solid #fff;box-shadow:0 0 0 5px rgba(93,168,255,.22)}
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--ink);border-radius:12px;border:1px solid var(--line)}
+  .leaflet-popup-tip{background:var(--panel)}
+  .leaflet-popup-content{margin:11px 13px;font-size:14px}
+  .pop-street{font-weight:700;margin-bottom:2px}
+  .pop-sub{color:var(--ink-dim);font-size:12px;text-transform:uppercase;margin-bottom:9px}
+  .pop-btns{display:flex;gap:6px}
+  .pop-btns button{padding:7px 11px;font-size:13px;border-radius:8px}
+
+  /* Reveal sheet after each scan */
+  #reveal{position:fixed;inset:0;z-index:1300;background:rgba(6,9,14,.82);display:none;align-items:flex-end}
+  #reveal.on{display:flex}
+  .rev-card{width:100%;max-width:600px;margin:0 auto;background:var(--panel);border-top:2px solid var(--green);
+    border-radius:18px 18px 0 0;padding:16px 14px calc(18px + env(safe-area-inset-bottom));
+    max-height:94vh;overflow:auto;animation:rise .18s ease-out}
+  @keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.rev-card{animation:none}}
+  .rev-tag{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green);margin-bottom:6px}
+  .rev-tag.twin{color:var(--blue)}
+  .rev-street{font-size:25px;font-weight:800;line-height:1.15}
+  .rev-sub{font-size:13px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+  #revMap{height:220px;border-radius:12px;margin-top:12px;border:1px solid var(--line);background:var(--panel-2)}
+  .rev-near{font-size:13.5px;color:var(--ink);margin-top:11px;border-left:2px solid var(--green);padding-left:10px;line-height:1.55}
+  .rev-near b{color:var(--green)}
+  .rev-near .far{color:var(--blue)}
+  .rev-btns{display:flex;gap:8px;margin-top:14px}
+  .rev-btns .btn{flex:1;width:auto}
+
+  /* Optimise */
+  .modes{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+  .mode{padding:9px 12px;border-radius:10px;font-size:13px;background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line)}
+  .mode.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+  .note{font-size:13px;color:var(--ink-dim);margin-top:8px;line-height:1.5}
+  .note b{color:var(--amber)}
+  .progress{font-size:13px;color:var(--amber);font-weight:700;margin-top:8px;display:none}
+  #legs .btn{margin-bottom:8px}
+
+  /* Load order + sort steps */
+  .loadrow{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .loadrow:last-child{border-bottom:none}
+  .loadrow i{font-style:normal;font-weight:800;color:var(--amber);min-width:26px;font-variant-numeric:tabular-nums}
+  .loadrow span{color:var(--ink-dim);font-size:12.5px}
+  .steprow{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .steprow:last-child{border-bottom:none}
+  .steprow.ticked{opacity:.45}
+  .steprow .tick{flex:none;width:26px;height:26px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);font-size:13px;padding:0}
+  .steprow.ticked .tick{background:var(--green);color:#04240f;border-color:var(--green)}
+  .steprow b{color:var(--amber)}
+
+  /* Delivered */
+  #doneWrap{display:none}
+  .donerow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;color:var(--ink-dim)}
+  .donerow:last-child{border-bottom:none}
+  .donerow s{color:var(--ink-dim)}
+
+  .dock{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to top,var(--bg) 70%,transparent);padding:10px 14px calc(16px + env(safe-area-inset-bottom))}
+
+  #banner{display:none;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--amber);
+    border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:14px}
+  #banner .txt{flex:1;line-height:1.35}
+  #banner .txt b{color:var(--amber)}
+  #banner button{padding:8px 12px;font-size:13px;border-radius:9px;background:transparent;color:var(--ink-dim);border:1px solid var(--line)}
+  .footer{text-align:center;padding:4px 0 10px}
+  .footer button{background:transparent;color:var(--ink-dim);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600}
+  .saveflag{font-size:12px;color:var(--ink-dim);text-align:center;margin-bottom:8px}
+  .dock-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
+  .dock .btn{flex:1;padding:15px}
+
+  #sheetBack{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:1200}
+  #sheet{position:fixed;left:0;right:0;bottom:0;z-index:1201;display:none;background:var(--panel);border-top:2px solid var(--amber);border-radius:18px 18px 0 0;padding:18px 16px 26px;max-width:600px;margin:0 auto}
+  #sheet h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:4px}
+  #sheet .btn-row{margin-top:14px}
+
+  .modalBack{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:1200}
+  .modal{position:fixed;left:0;right:0;bottom:0;z-index:1201;display:none;background:var(--panel);border-top:2px solid var(--amber);border-radius:18px 18px 0 0;padding:18px 16px 26px;max-width:600px;margin:0 auto}
+  .modal h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:4px}
+  .btn-stack{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Address <em>Scanner</em> With Maps</div>
+    <div class="headright">
+      <div class="gps" id="gpsChip"><i></i><span id="gpsTxt">GPS off</span></div>
+      <div class="count-chip"><b id="stopCount">0</b> to go</div>
+    </div>
+  </header>
+
+  <div id="banner"><div class="txt" id="bannerTxt"></div><button id="bannerFresh">Start fresh</button></div>
+
+  <div id="scanStrip"><span class="dot"></span><span id="scanMsg">Camera off</span></div>
+  <div id="reader"></div>
+
+  <div class="btn-row" style="margin-bottom:12px">
+    <button class="btn btn-amber" id="btnScan">Start scanning</button>
+    <button class="btn btn-ghost" id="btnManual">Add by hand</button>
+  </div>
+
+  <div class="panel" id="camHelp" style="display:none">
+    <h2>Camera</h2>
+    <div id="camHelpText"></div>
+    <label for="fileInput">Or read a photo of the label</label>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <div class="panel" id="manualPanel" style="display:none">
+    <h2>Add a stop</h2>
+    <label for="pasteRaw">Paste QR text</label>
+    <textarea id="pasteRaw" placeholder="Paste the raw label data here..."></textarea>
+    <button class="btn btn-ghost" style="margin-top:8px" id="btnParsePaste">Read pasted label</button>
+    <label for="manStreet">Or type it — street</label>
+    <input type="text" id="manStreet" placeholder="278 Bambra Rd" autocomplete="off">
+    <label for="manSuburb">Suburb</label>
+    <input type="text" id="manSuburb" placeholder="Caulfield South" autocomplete="off">
+    <label for="manPostcode">Postcode</label>
+    <input type="text" id="manPostcode" placeholder="3162" inputmode="numeric" autocomplete="off">
+    <button class="btn btn-amber" style="margin-top:12px" id="btnManAdd">Add stop</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" id="tabList">List</button>
+    <button class="tab" id="tabMap">Map</button>
+  </div>
+
+  <div class="orderbar">
+    <button class="pill on" id="pillScan">Parcel order</button>
+    <button class="pill" id="pillOpt" disabled>Optimised</button>
+    <span style="font-size:12px;color:var(--ink-dim)" id="geoStatus"></span>
+  </div>
+
+  <div id="mapWrap">
+    <div class="maptools">
+      <button class="mini edit" id="btnMe">Centre on me</button>
+      <button class="mini edit" id="btnAll">Fit all stops</button>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div id="listWrap">
+    <ul id="stopList"></ul>
+    <div class="empty" id="emptyMsg">No stops yet. Scan a label or add one by hand — each one drops a pin as you go.</div>
+  </div>
+
+  <div class="panel" id="doneWrap">
+    <h2>Delivered <span id="doneCount"></span></h2>
+    <div id="doneList"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Depot (route ends here)</h2>
+    <input type="text" id="depot" placeholder="e.g. 44 Depot Rd, Sunshine West 3020" autocomplete="off">
+    <div class="note" id="depotNote">The run starts from wherever you are and finishes back here.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Delivery history</h2>
+    <label style="display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);margin-top:0">
+      <input type="checkbox" id="useHistory" checked style="width:auto;accent-color:var(--amber)">
+      Use my past runs to fine-tune the order
+    </label>
+    <div class="note" id="historyNote">No runs saved yet.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Optimise (optional)</h2>
+    <div class="modes">
+      <button class="mode on" data-mode="crow">Distance, quick</button>
+      <button class="mode" data-mode="dist">Road distance</button>
+      <button class="mode" data-mode="time">Road time</button>
+      <button class="mode" data-mode="traffic">Live traffic</button>
+    </div>
+    <div class="note" id="modeNote"></div>
+    <button class="btn btn-ghost" style="margin-top:10px" id="btnOptimise" disabled>Suggest an order</button>
+    <div class="progress" id="prog"></div>
+    <div class="note">Your parcel order is never changed. An optimised run shows the parcel number on each stop, so you grab the right one out of the van without re-sorting anything.</div>
+  </div>
+
+  <div class="panel" id="loadPanel" style="display:none">
+    <h2>Load order — first drop nearest the door</h2>
+    <div id="loadList"></div>
+    <div class="note">Load the van in this order and every parcel comes out in run order. Position 1 goes in first, deepest in the van.</div>
+  </div>
+
+  <div class="panel" id="sortPanel" style="display:none">
+    <h2>Re-sort what you have <span id="sortCount" style="color:var(--amber)"></span></h2>
+    <div id="sortList"></div>
+    <div class="note">Only the parcels that are out of place are listed. Work down the list and the rest stay where they are.</div>
+  </div>
+
+  <div class="panel" id="routePanel" style="display:none">
+    <h2>Send to Google Maps</h2>
+    <div id="legs"></div>
+    <div class="note">Google Maps takes about 10 stops per trip, so long runs split into legs. Each leg starts from wherever you are and the last one ends at the depot.</div>
+  </div>
+  <div class="saveflag" id="saveFlag"></div>
+  <div class="footer"><button id="btnResetAll">Reset everything</button></div>
+</div>
+
+<div class="dock">
+  <div class="dock-inner">
+    <button class="btn btn-amber" id="btnRoute" disabled>Route to Maps</button>
+    <button class="btn btn-ghost" id="btnClear" disabled>New run</button>
+  </div>
+</div>
+
+<div id="reveal">
+  <div class="rev-card">
+    <div class="rev-tag" id="revTag">Scanned</div>
+    <div class="rev-street" id="revStreet">—</div>
+    <div class="rev-sub" id="revSub"></div>
+    <div id="revMap"></div>
+    <div class="rev-near" id="revNear"></div>
+    <div class="rev-btns">
+      <button class="btn btn-amber" id="revNext">Next parcel</button>
+      <button class="btn btn-ghost" id="revEdit">Fix address</button>
+    </div>
+  </div>
+</div>
+
+<div id="sheetBack"></div>
+<div id="sheet">
+  <h3 id="sheetTitle">Check this stop</h3>
+  <label for="edStreet">Street</label>
+  <input type="text" id="edStreet" autocomplete="off">
+  <label for="edSuburb">Suburb</label>
+  <input type="text" id="edSuburb" autocomplete="off">
+  <label for="edPostcode">Postcode</label>
+  <input type="text" id="edPostcode" inputmode="numeric" autocomplete="off">
+  <div class="btn-row">
+    <button class="btn btn-amber" id="edSave">Save stop</button>
+    <button class="btn btn-ghost" id="edCancel">Discard</button>
+  </div>
+</div>
+
+<div id="histBack" class="modalBack"></div>
+<div id="histSheet" class="modal">
+  <h3>Starting a new run</h3>
+  <p class="note" id="histNote" style="margin-top:2px"></p>
+  <div class="btn-stack">
+    <button class="btn btn-amber" id="histSave">Save this run, then start new</button>
+    <button class="btn btn-ghost" id="histSkip">Start new without saving</button>
+    <button class="btn btn-ghost" id="histCancel">Cancel</button>
+  </div>
+</div>
+<script>
+"use strict";
+
+/* ================= State ================= */
+let stops = [];          // scan order, never reordered
+let optOrder = null;     // array of stop ids = suggested order
+let view = "scan";       // scan | opt
+let tab = "list";        // list | map
+let mode = "crow";
+let depotPt = null;
+let scanner = null, scanning = false;
+let lastScanText = "", lastScanAt = 0;
+let editingIndex = null, pendingStop = null;
+let nextId = 1;
+let map = null, markerLayer = null, meLayer = null, mapReady = false;
+let me = null;           // {lat,lng,acc}
+let sortDone = {};       // ticked re-sort steps, in memory only
+let doneCounter = 0;     // increments each time a stop is marked done, so we know the real order they were delivered in
+let pendingReset = false;
+
+/* ================= Delivery history (this phone only) =================
+   Every time a run is cleared, the driver can save it: the addresses and
+   the order they were actually delivered in. Over more runs, this builds
+   a small table of "address A was delivered right before address B, N
+   times". Optimising then nudges its distance/time score toward pairs
+   that recur, on top of the real geography, capped so it can never
+   override an obviously better route. This is a plain frequency count,
+   not a trained model, and it never overrides road distance by more
+   than the cap below.
+   ========================================================== */
+const HISTORY_KEY = "addressScannerWithMaps.history.v1";
+let historyStore = { runs: [], adjacency: {} };
+
+function loadHistoryStore(){
+  try{
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (raw){
+      const d = JSON.parse(raw);
+      if (d && Array.isArray(d.runs) && d.adjacency) historyStore = d;
+    }
+  } catch(e){}
+}
+function saveHistoryStore(){
+  try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(historyStore)); } catch(e){}
+}
+
+function addrKey(s){
+  return ((s.street||"") + "|" + (s.suburb||"")).toUpperCase().replace(/\s+/g," ").trim();
+}
+
+/* how much to discount the cost between two addresses, based on how
+   often B has directly followed A in past delivered runs. Capped at a
+   30% discount so it can nudge order but never fight real distance. */
+function adjacencyFactor(keyA, keyB){
+  if (!keyA || !keyB) return 1;
+  const n = historyStore.adjacency[keyA+">"+keyB] || 0;
+  if (!n) return 1;
+  return Math.max(0.7, 1 - 0.06*Math.min(n,5));
+}
+
+function saveRunToHistory(){
+  const relevant = stops.filter(s => s.lat !== null);
+  if (!relevant.length) return false;
+  const entry = {
+    savedAt: Date.now(),
+    depot: depotPt ? depotPt.addr : ($("depot").value.trim() || ""),
+    stops: relevant.map(s => ({ key:addrKey(s), street:s.street, suburb:s.suburb, postcode:s.postcode,
+      lat:s.lat, lng:s.lng, parcel:s.parcel, done:!!s.done, doneSeq: s.doneSeq==null ? null : s.doneSeq }))
+  };
+  historyStore.runs.push(entry);
+  if (historyStore.runs.length > 60) historyStore.runs = historyStore.runs.slice(-60);
+
+  const delivered = entry.stops.filter(s => s.done && s.doneSeq != null).sort((a,b)=>a.doneSeq-b.doneSeq);
+  for (let i=0;i<delivered.length-1;i++){
+    const k = delivered[i].key + ">" + delivered[i+1].key;
+    historyStore.adjacency[k] = (historyStore.adjacency[k]||0) + 1;
+  }
+  saveHistoryStore();
+  return true;
+}
+
+function renderHistoryNote(){
+  const nRuns = historyStore.runs.length;
+  const nPairs = Object.keys(historyStore.adjacency).length;
+  $("historyNote").textContent = nRuns
+    ? "Learned from " + nRuns + " saved run" + (nRuns===1?"":"s") + " \u00B7 " + nPairs +
+      " address pairing" + (nPairs===1?"":"s") + " noticed so far."
+    : "No runs saved yet. Save one when you start a new run and this starts learning your usual pairings.";
+}
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const active = () => stops.filter(s => !s.done);
+
+/* ================= Saving ================= */
+const STORE_KEY = "addressScannerWithMaps.v1";
+let storageOk = true, loaded = false;
+
+function save(){
+  if (!loaded || !storageOk) return;
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      stops, nextId, optOrder, view, mode, depotPt, doneCounter,
+      useHistory: $("useHistory").checked,
+      depot: $("depot").value, saved: Date.now()
+    }));
+  } catch(e){ storageOk = false; showSaveFlag(); }
+}
+
+function load(){
+  let d = null;
+  try{ const raw = localStorage.getItem(STORE_KEY); if (raw) d = JSON.parse(raw); }
+  catch(e){ storageOk = false; }
+  loaded = true;
+  if (!d || !Array.isArray(d.stops) || !d.stops.length){ showSaveFlag(); return; }
+
+  stops = d.stops.map(s => ({ ...s, geoState: s.geoState === "ok" ? "ok" : "queued" }));
+  nextId = d.nextId || (Math.max.apply(null, stops.map(s=>s.id)) + 1);
+  optOrder = d.optOrder || null;
+  view = d.view === "opt" && optOrder ? "opt" : "scan";
+  mode = d.mode || "crow";
+  depotPt = d.depotPt || null;
+  doneCounter = d.doneCounter || 0;
+  $("useHistory").checked = d.useHistory !== false;
+  if (d.depot) $("depot").value = d.depot;
+
+  document.querySelectorAll(".mode").forEach(b => b.classList.toggle("on", b.getAttribute("data-mode") === mode));
+  if (MODE_NOTES[mode]) $("modeNote").innerHTML = MODE_NOTES[mode];
+
+  const togo = active().length, done = stops.filter(s=>s.done).length;
+  $("bannerTxt").innerHTML = "Picked your run back up — <b>" + togo + "</b> to go" +
+    (done ? ", " + done + " delivered" : "") + ". Saved " + ago(d.saved) + ".";
+  $("banner").style.display = "flex";
+  showSaveFlag();
+}
+
+function ago(ts){
+  if (!ts) return "earlier";
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 2) return "just now";
+  if (m < 60) return m + " min ago";
+  const h = Math.round(m/60);
+  if (h < 24) return h + (h===1?" hour ago":" hours ago");
+  const d = Math.round(h/24);
+  return d + (d===1?" day ago":" days ago");
+}
+
+function showSaveFlag(){
+  $("saveFlag").textContent = storageOk
+    ? "Your run saves automatically on this phone."
+    : "Saving is off in this window — open the hosted link in its own tab.";
+}
+
+function wipe(all){
+  stops = []; optOrder = null; view = "scan"; nextId = 1; sortDone = {};
+  $("routePanel").style.display = "none";
+  $("loadPanel").style.display = "none";
+  $("sortPanel").style.display = "none";
+  $("banner").style.display = "none";
+  if (all){
+    depotPt = null; $("depot").value = ""; mode = "crow";
+    document.querySelectorAll(".mode").forEach(b => b.classList.toggle("on", b.getAttribute("data-mode")==="crow"));
+    $("modeNote").innerHTML = MODE_NOTES.crow;
+    try{ localStorage.removeItem(STORE_KEY); } catch(e){}
+  }
+  render();
+}
+
+/* ==========================================================
+   Label parsing
+
+   Layer 1  StarTrack / Shippit fixed-width QR payload.
+            Fields are padded to a set width but never cut, so a
+            long name pushes everything right. Anchored on the
+            despatch date and the unit/depot marker, not on raw
+            offsets. Checked against real labels.
+   Layer 2  Tagged payloads: JSON, or KEY:VALUE lines.
+   Layer 3  Loose hunt for an Australian address anywhere in the
+            text, line by line then across the whole string.
+   ========================================================== */
+const STATES = "VIC|NSW|QLD|SA|WA|TAS|NT|ACT";
+const STREET_TYPES = "RD|ROAD|ST|STREET|AVE?|AVENUE|CT|COURT|CRES|CRESCENT|CR|DR|DRIVE|PDE|PARADE|GR|GROVE|PL|PLACE|WAY|HWY|HIGHWAY|CL|CLOSE|LANE|LN|BVD|BLVD|BOULEVARD|TCE|TERRACE|CCT|CIRCUIT|ESP|ESPLANADE|GDNS?|GARDENS?|SQ|SQUARE|WALK|WK|MEWS|RISE|VIEW|GLEN|COVE|CHASE|LOOP|TRACK|TRK|PROM|PROMENADE|QUAY|VISTA|BEND|GATE|ENT|ENTRANCE|CIRCLE|CIR|CORSO|MALL|ARC|ARCADE|ROW|STRIP|BROADWAY|FWY|FREEWAY|PKWY|PARKWAY|BYPASS|RTE|ROUTE|GRA|GRANGE|HTS|HEIGHTS|RDGE|RIDGE|BRAE|DENE|LINK|NOOK|PATH|PORT|REST|RUN|SLOPE|SPUR|TOR|WYND";
+const UNIT_WORDS = "UNIT|U|APT|APARTMENT|FLAT|SHOP|SUITE|LVL|LEVEL|LOT|FACTORY|WAREHOUSE|OFFICE|VILLA|SITE|ROOM";
+const UNIT_CODES = ["CTN","BAG","SAT","PLT","ENV","CRT","ITM","PKT","TUB","SKD","PCE","DRM","BSK","ROL","PAL","JIF","CAR","   "];
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function titleCase(s){
+  if (!s) return "";
+  const stateRe = new RegExp("^(?:"+STATES+")$","i");
+  return String(s).split(/(\s+)/).map(tok => {
+    if (!tok.trim()) return " ";
+    if (/\d/.test(tok)) return tok.replace(/(\d)([a-z])(?![A-Za-z])/g, (m,d,c)=>d+c.toUpperCase());
+    if (stateRe.test(tok)) return tok.toUpperCase();
+    if (tok === tok.toUpperCase() || tok === tok.toLowerCase()){
+      return (tok.charAt(0).toUpperCase() + tok.slice(1).toLowerCase())
+        .replace(/(['’\-\/])([a-z])/g, (m,p,c)=>p+c.toUpperCase());
+    }
+    return tok;                                     // already mixed case, leave it alone
+  }).join("").replace(/\s{2,}/g," ").trim();
+}
+
+function dedupeRepeat(s){
+  if (!s) return s;
+  const m = /^(.+?)[\s,]+\1$/.exec(String(s).trim());
+  return m ? m[1].trim() : String(s).trim();
+}
+
+function looksLikeStreetStart(s){
+  return new RegExp("^\\s*(?:\\d|(?:"+UNIT_WORDS+")\\b|PO\\s*BOX)","i").test(String(s||""));
+}
+
+function cleanStreet(street, suburb, postcode){
+  let out = dedupeRepeat(String(street||"").replace(/\s{2,}/g," ").trim());
+  if (suburb){
+    const subEsc = suburb.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    out = out.replace(new RegExp("[,\\s]+"+subEsc+"\\b[,\\s]*(?:"+STATES+")?[,\\s]*"+(postcode||"\\d{0,4}")+"?\\s*$","i"),"");
+  }
+  out = out.replace(new RegExp("[,\\s]+(?:"+STATES+")[,\\s]*\\d{4}\\s*$","i"),"");
+  out = out.replace(/[,\s]+\d{4}\s*$/,"");
+  out = dedupeRepeat(out.replace(/[,\s]+$/,""));
+  return out.replace(/\s{2,}/g," ").trim();
+}
+
+function parseStarTrack(text){
+  const head = /^([A-Za-z][A-Za-z'’.\- ]*?)\s{2,}(\d{4})(?=[A-Z0-9])/.exec(text);
+  if (!head) return null;
+  const suburb = head[1].trim(), postcode = head[2];
+  const connote = text.substr(34,12).trim();
+  const article = text.substr(46,20).trim();
+
+  let dateIdx = -1;
+  const dre = /(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/g;
+  let dm;
+  while ((dm = dre.exec(text)) !== null){
+    if (dm.index >= 80 && dm.index <= 170){ dateIdx = dm.index; break; }
+  }
+  if (dateIdx < 0) return null;
+
+  const tail = text.slice(dateIdx + 8);
+  const mre = new RegExp("("+UNIT_CODES.join("|")+")([A-Z]{3})\\s", "g");
+  let mm, best = null;
+  while ((mm = mre.exec(tail)) !== null){
+    if (mm.index < 38) continue;                       // name field is 40 wide
+    const after = tail.slice(mm.index + mm[0].length);
+    let score = 0;
+    if (mm.index === 40 || mm.index === 80) score += 3;
+    if (looksLikeStreetStart(after)) score += 4;
+    if (mm[1].trim()) score += 1;
+    if (!best || score > best.score) best = { at:mm.index, m:mm, score };
+  }
+  if (!best || best.score < 4) return null;
+
+  const unitType = best.m[1].trim(), depotCode = best.m[2];
+  const nameBlock = tail.slice(0, best.at);
+
+  let receiver = "", company = "";
+  const half = Math.floor(nameBlock.length/2);
+  const h1 = nameBlock.slice(0,half).trim(), h2 = nameBlock.slice(half).trim();
+  if (h1 && h1 === h2){ receiver = h1; }
+  else {
+    receiver = nameBlock.slice(0,40).trim();
+    company  = nameBlock.slice(40).trim();
+    if (receiver === company) company = "";
+    if (!receiver && company){ receiver = company; company = ""; }
+  }
+
+  let rest = tail.slice(best.at + best.m[0].length);
+  const fm = /\s+N[A-Z](?=\s|$)/.exec(rest);
+  if (fm && fm.index > 8) rest = rest.slice(0, fm.index);
+
+  let phone = "";
+  const ph = /\s(\+?\d[\d ]{7,14})\s*$/.exec(rest);
+  if (ph){ phone = ph[1].replace(/\s+/g,""); rest = rest.slice(0, ph.index); }
+
+  const street = cleanStreet(rest, suburb, postcode);
+  if (!street) return null;
+
+  return { ok:true, format:"startrack", street:titleCase(street), suburb:titleCase(suburb),
+    postcode, receiver:titleCase(receiver), company:titleCase(company),
+    phone, con:connote, article, unitType, depot:depotCode };
+}
+
+function pickTag(obj, keys){
+  for (const k of Object.keys(obj)){
+    const flat = k.toLowerCase().replace(/[^a-z0-9]/g,"");
+    if (keys.indexOf(flat) > -1){
+      const v = obj[k];
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+  }
+  return "";
+}
+
+function parseTagged(raw){
+  let obj = null;
+  const t = raw.trim();
+  if (t.charAt(0) === "{"){
+    try{ const j = JSON.parse(t); if (j && typeof j === "object") obj = j; } catch(e){}
+  }
+  if (!obj){
+    const pairs = {};
+    const re = /([A-Za-z][A-Za-z0-9 _-]{1,24})\s*[:=]\s*([^\n\r|;]+)/g;
+    let m, n = 0;
+    while ((m = re.exec(raw)) !== null){ pairs[m[1].trim()] = m[2].trim(); n++; }
+    if (n >= 2) obj = pairs;
+  }
+  if (!obj) return null;
+
+  let street = pickTag(obj, ["address","address1","addressline1","addr1","street","streetaddress","line1","deliveryaddress","deliveryaddress1","to"]);
+  const line2 = pickTag(obj, ["address2","addressline2","addr2","line2"]);
+  let suburb  = pickTag(obj, ["suburb","city","locality","town","suburbcity"]);
+  let postcode= pickTag(obj, ["postcode","postalcode","zip","zipcode","pc"]);
+  const receiver = pickTag(obj, ["name","receiver","recipient","consignee","contact","deliverto","customer"]);
+  const con = pickTag(obj, ["connote","consignment","tracking","trackingnumber","reference","barcode","articleid","waybill"]);
+
+  if (!street && line2) street = line2;
+  if (street && !suburb){
+    const g = parseLoose(street + (postcode ? " " + postcode : ""));
+    if (g){ suburb = suburb || g.suburb; postcode = postcode || g.postcode; if (g.street) street = g.street; }
+  }
+  if (!postcode){
+    const pm = new RegExp("\\b(?:"+STATES+")\\s*(\\d{4})\\b","i").exec(raw);
+    if (pm) postcode = pm[1];
+  }
+  if (!street) return null;
+  return { ok:true, format:"tagged", street:titleCase(cleanStreet(street, suburb, postcode)),
+    suburb:titleCase(suburb), postcode, receiver:titleCase(receiver), company:"", phone:"",
+    con, article:"", unitType:"", depot:"" };
+}
+
+function streetIn(s){
+  const re = new RegExp(
+    "((?:(?:"+UNIT_WORDS+")\\s*[.:]?\\s*\\d+[A-Za-z]?[,\\s]+)?" +      // UNIT 5
+    "\\d+[A-Za-z]?(?:\\s*[\\/-]\\s*\\d+[A-Za-z]?)?\\s+" +               // 2/13, 27-49, 6A
+    "[A-Za-z][A-Za-z'’.\\-]*(?:\\s+[A-Za-z][A-Za-z'’.\\-]*){0,3}\\s+" + // street name words
+    "(?:"+STREET_TYPES+"))\\b(?!\\s*(?:"+STREET_TYPES+")\\b)","i");
+  const m = re.exec(s);
+  return m ? m[1].replace(/\s{2,}/g," ").trim() : "";
+}
+
+/* drop anything in front of the suburb that is clearly still part of the
+   street, so "64 Coorigil Rd Carnegie" gives "Carnegie" and not the lot */
+function cleanSuburb(s, stripTypes){
+  const typeRe = new RegExp("^(?:"+STREET_TYPES+")$","i");
+  let words = String(s||"").trim().split(/[ \t]+/).filter(Boolean);
+  while (words.length > 1 && /\d/.test(words[0])) words.shift();          // 64, 4/91
+  if (stripTypes){                                                        // only when the
+    while (words.length > 1 && typeRe.test(words[0])) words.shift();      // street was not
+  }                                                                       // found and cut off
+  if (words.length === 1 && typeRe.test(words[0])) return "";
+  return words.slice(-4).join(" ").replace(/^[,\s]+|[,\s]+$/g,"");
+}
+
+function parseLoose(raw){
+  const text = String(raw||"").replace(/\r/g,"\n").replace(/[|;\t]+/g,", ");
+  let suburb = "", postcode = "", street = "", con = "";
+
+  const headRe = /^\s*([A-Za-z][A-Za-z'’.\- ]*[A-Za-z.])\s{2,}(\d{4})(?=[A-Z0-9 ])/;
+  const head = headRe.exec(text);
+  if (head){ suburb = head[1].trim(); postcode = head[2]; }
+
+  const c = /\b([A-Z0-9]{3,4}Z?\d{6,12})\b/.exec(text);
+  if (c) con = c[1];
+
+  const lines = text.split(/\n+|\s{3,}|(?:,\s*)/).map(x=>x.trim()).filter(Boolean);
+  for (const ln of lines){
+    const hit = streetIn(ln);
+    if (hit){ street = hit; break; }
+  }
+  if (!street) street = streetIn(text);
+
+  // read the suburb from whatever follows the street, so the street can
+  // never be swallowed into it
+  let after = text;
+  if (street){
+    const at = text.toUpperCase().indexOf(street.toUpperCase());
+    if (at > -1) after = text.slice(at + street.length);
+  }
+  const word = "[A-Za-z][A-Za-z'’.\\-]*";
+  if (!suburb){
+    const sp = new RegExp("("+word+"(?:[ \\t]+"+word+"){0,3})[,\\s]+(?:"+STATES+")\\b[,\\s]*(\\d{4})\\b","i").exec(after);
+    if (sp){ suburb = cleanSuburb(sp[1], !street); postcode = sp[2]; }
+  }
+  if (!suburb){
+    const sp2 = new RegExp("("+word+"(?:[ \\t]+"+word+"){0,3})[,\\s]+(\\d{4})\\b").exec(after);
+    if (sp2){ suburb = cleanSuburb(sp2[1], !street); postcode = postcode || sp2[2]; }
+  }
+  if (!postcode){
+    const pc = new RegExp("\\b(?:"+STATES+")[,\\s]*(\\d{4})\\b","i").exec(text);
+    if (pc) postcode = pc[1];
+  }
+
+  if (!street && !suburb) return null;
+  street = cleanStreet(street, suburb, postcode);
+  return { ok: !!street, format:"loose", street:titleCase(street), suburb:titleCase(suburb),
+    postcode, receiver:"", company:"", phone:"", con, article:"", unitType:"", depot:"" };
+}
+
+function parseLabel(raw){
+  const src = String(raw==null?"":raw);
+  if (!src.trim()) return null;
+  const flat = src.replace(/[\r\n]+/g," ");
+  try{ const a = parseStarTrack(flat); if (a && a.street) return a; }catch(e){}
+  try{ const b = parseTagged(src);     if (b && b.street) return b; }catch(e){}
+  try{ const c = parseLoose(src);      if (c) return c; }catch(e){}
+  return null;
+}
+
+/* ================= Scan feedback ================= */
+function flashStrip(kind, msg){
+  const strip = $("scanStrip");
+  strip.classList.remove("hit","dup");
+  void strip.offsetWidth;
+  if (kind) strip.classList.add(kind);
+  $("scanMsg").textContent = msg;
+  if (kind === "hit" && navigator.vibrate) navigator.vibrate(60);
+  if (kind) setTimeout(()=>strip.classList.remove("hit","dup"), 900);
+}
+
+function onScan(text){
+  const now = Date.now();
+  if (text === lastScanText && now - lastScanAt < 3500) return;
+  lastScanText = text; lastScanAt = now;
+  const p = parseLabel(text);
+  if (!p){ flashStrip("dup","No address in that code — try Add by hand"); return; }
+  const twin = sameParcel(p);
+  if (twin){ flashStrip("dup","Already scanned: " + (p.street || p.suburb)); return; }
+  if (p.street){
+    const s = addStop(p);
+    flashStrip("hit","Parcel " + s.parcel + ": " + s.street);
+    openReveal(s);
+  } else {
+    pendingStop = p;
+    openSheet(null, p, "Scan needs a street");
+  }
+}
+
+/* the same physical parcel scanned twice, not a second parcel for one address */
+function sameParcel(p){
+  return stops.some(s => {
+    if (p.article && s.article) return s.article === p.article;
+    if (p.con && s.con && p.street) return s.con === p.con && s.street.toUpperCase() === p.street.toUpperCase();
+    if (p.con && s.con && !p.street) return s.con === p.con;
+    return false;
+  });
+}
+
+function twinCount(street, suburb){
+  const k = (street+"|"+suburb).toUpperCase();
+  return stops.filter(s => (s.street+"|"+s.suburb).toUpperCase() === k).length;
+}
+
+/* ================= Camera ================= */
+function camHelp(html){ $("camHelp").style.display="block"; $("camHelpText").innerHTML = html; }
+
+function handleCamError(err){
+  const n = (err && err.name) || "";
+  stopScanner();
+  if (n === "NotAllowedError" || n === "PermissionDeniedError"){
+    flashStrip("dup","Camera permission was blocked");
+    camHelp("The phone blocked camera access for this site.<br><br><b>Android (Chrome):</b> tap the icon left of the address bar, then Permissions, then allow Camera. Reload.<br><br><b>iPhone (Safari):</b> tap <b>aA</b> in the address bar, then Website Settings, set Camera to Allow. Reload.");
+  } else if (n === "NotFoundError" || n === "DevicesNotFoundError"){
+    flashStrip("dup","No camera found"); camHelp("No camera was found. Use the photo option below.");
+  } else if (n === "NotReadableError" || n === "TrackStartError"){
+    flashStrip("dup","Camera is busy"); camHelp("Another app is using the camera. Close it and try again.");
+  } else {
+    flashStrip("dup","Camera failed to start");
+    camHelp("The camera would not start (" + (n||"unknown") + "). Reload the page, or use the photo option below.");
+  }
+}
+
+async function startScanner(){
+  if (scanning){ stopScanner(); return; }
+  if (!window.isSecureContext){
+    flashStrip("dup","Camera needs an https link");
+    camHelp("This page is open over <b>"+location.protocol+"</b>. Phone browsers only allow the camera on an <b>https://</b> address. Host it and open that link instead.");
+    return;
+  }
+  if (window.self !== window.top){
+    flashStrip("dup","Open the app in its own tab");
+    camHelp("The app is inside a preview frame, which blocks the camera. Open the hosted link as its own browser tab.");
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    flashStrip("dup","This browser has no camera access");
+    camHelp("Use <b>Chrome</b> on Android or <b>Safari</b> on iPhone.");
+    return;
+  }
+  $("scanMsg").textContent = "Asking for camera permission...";
+  let stream = null;
+  try{ stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } }); }
+  catch(err){ handleCamError(err); return; }
+  stream.getTracks().forEach(t=>t.stop());
+  $("camHelp").style.display = "none";
+  $("reader").style.display = "block";
+  $("btnScan").textContent = "Stop camera";
+  try{
+    scanner = new Html5Qrcode("reader");
+    await scanner.start({ facingMode:"environment" }, { fps:10, qrbox:{width:240,height:240} }, onScan, ()=>{});
+    scanning = true;
+    $("scanStrip").classList.add("live");
+    $("scanMsg").textContent = "Scanning — point at the QR code";
+  } catch(err){ handleCamError(err); }
+}
+
+function stopScanner(){
+  if (scanner){ scanner.stop().catch(()=>{}); scanner = null; }
+  scanning = false;
+  $("reader").style.display = "none";
+  $("btnScan").textContent = "Start scanning";
+  $("scanStrip").classList.remove("live");
+  $("scanMsg").textContent = "Camera off";
+}
+
+$("fileInput").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  stopScanner();
+  $("reader").style.display = "block";
+  try{
+    const fs = new Html5Qrcode("reader");
+    const text = await fs.scanFile(f, false);
+    onScan(text);
+    await fs.clear();
+  } catch(err){ flashStrip("dup","No QR code found in that photo"); }
+  $("reader").style.display = "none"; $("reader").innerHTML = ""; e.target.value = "";
+});
+
+/* ================= Stops ================= */
+function tidy(s){ return titleCase(String(s||"").trim()); }
+function stopLabel(s){ return [s.street,s.suburb,s.postcode].filter(Boolean).join(", "); }
+
+function addStop(p){
+  const twin = twinCount(tidy(p.street), tidy(p.suburb)) > 0;
+  const s = {
+    id: nextId++, parcel: stops.length + 1,
+    street: tidy(p.street), suburb: tidy(p.suburb), postcode: p.postcode||"",
+    receiver: p.receiver||"", company: p.company||"", phone: p.phone||"",
+    con: p.con||"", article: p.article||"", unitType: p.unitType||"",
+    twin, lat:null, lng:null, geoState:"queued", done:false
+  };
+  stops.push(s);
+  optOrder = null; view = "scan"; sortDone = {};
+  render();
+  runGeoQueue();
+  return s;
+}
+
+/* ================= Geocoding (free, runs in the background) ================= */
+let geoRunning = false;
+
+async function photon(q){
+  const url = "https://photon.komoot.io/api/?limit=1&bbox=112.9,-43.7,153.7,-9.1&q=" + encodeURIComponent(q);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("photon");
+  const d = await r.json();
+  if (d.features && d.features.length){
+    const c = d.features[0].geometry.coordinates;
+    return { lat:c[1], lng:c[0] };
+  }
+  return null;
+}
+async function nominatim(q){
+  const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=au&q=" + encodeURIComponent(q);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("nominatim");
+  const d = await r.json();
+  return (d && d.length) ? { lat:+d[0].lat, lng:+d[0].lon } : null;
+}
+
+async function locate(q){
+  try{ const h = await photon(q); if (h) return h; } catch(e){}
+  await sleep(400);
+  try{ const h = await nominatim(q); if (h) return h; } catch(e){}
+  return null;
+}
+
+async function runGeoQueue(){
+  if (geoRunning) return;
+  geoRunning = true;
+  while (true){
+    const s = stops.find(x => x.geoState === "queued" && !x.done);
+    if (!s) break;
+    s.geoState = "working"; updateGeoStatus();
+    const hit = await locate(stopLabel(s) + ", Australia");
+    if (hit){ s.lat = hit.lat; s.lng = hit.lng; s.geoState = "ok"; }
+    else { s.geoState = "failed"; }
+    render();
+    drawReveal();
+    await sleep(350);
+  }
+  geoRunning = false;
+  updateGeoStatus();
+}
+
+function updateGeoStatus(){
+  const waiting = stops.filter(s => !s.done && (s.geoState==="queued"||s.geoState==="working")).length;
+  $("geoStatus").textContent = waiting ? ("placing " + waiting + " on map...") : "";
+}
+
+/* ================= Where am I ================= */
+let watchId = null;
+
+function startWatch(){
+  if (!navigator.geolocation){ $("gpsTxt").textContent = "No GPS"; return; }
+  watchId = navigator.geolocation.watchPosition(
+    pos => {
+      me = { lat:pos.coords.latitude, lng:pos.coords.longitude, acc:pos.coords.accuracy };
+      $("gpsChip").classList.add("on");
+      $("gpsTxt").textContent = "\u00B1" + Math.round(me.acc) + "m";
+      drawMe();
+      drawReveal();
+    },
+    err => {
+      $("gpsChip").classList.remove("on");
+      $("gpsTxt").textContent = err && err.code === 1 ? "GPS blocked" : "No fix";
+    },
+    { enableHighAccuracy:true, maximumAge:5000, timeout:15000 }
+  );
+}
+
+function haversine(a,b){
+  const R=6371, r=Math.PI/180;
+  const dLat=(b.lat-a.lat)*r, dLng=(b.lng-a.lng)*r;
+  const h=Math.sin(dLat/2)**2 + Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function fmtDist(km){
+  const m = km*1000;
+  return m < 950 ? (Math.round(m/10)*10) + " m" : km.toFixed(1) + " km";
+}
+
+/* ================= Reveal: where this parcel goes ================= */
+let revMap = null, revLayer = null, revStop = null;
+
+function openReveal(s){
+  revStop = s;
+  const n = twinCount(s.street, s.suburb);
+  $("revTag").textContent = n > 1 ? ("Scanned \u00B7 parcel " + n + " for this address") : ("Scanned \u00B7 parcel " + s.parcel);
+  $("revTag").className = "rev-tag" + (n > 1 ? " twin" : "");
+  $("revStreet").textContent = s.street;
+  $("revSub").textContent = [s.suburb, s.postcode].filter(Boolean).join(" ") + (s.receiver ? " \u00B7 " + s.receiver : "");
+  $("reveal").classList.add("on");
+  setTimeout(()=>{
+    if (!revMap && window.L){
+      revMap = L.map("revMap", { zoomControl:false, attributionControl:false });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom:19 }).addTo(revMap);
+      revLayer = L.layerGroup().addTo(revMap);
+      revMap.setView([-37.8836,145.0553], 13);
+    }
+    if (revMap) revMap.invalidateSize();
+    drawReveal();
+  }, 60);
+}
+
+function closeReveal(){ $("reveal").classList.remove("on"); revStop = null; }
+
+function drawReveal(){
+  if (!revStop || !$("reveal").classList.contains("on")) return;
+  $("revNear").innerHTML = nearestBlurb(revStop);
+  if (!revMap || !revLayer) return;
+  revLayer.clearLayers();
+  const pts = [];
+
+  stops.forEach(s => {
+    if (s.lat === null || s.done) return;
+    const fresh = s.id === revStop.id;
+    const icon = L.divIcon({ className:"", iconSize:fresh?[38,38]:[30,30], iconAnchor:fresh?[19,36]:[15,28],
+      html:'<div class="pin '+(fresh?"fresh":"dim")+'"><span>'+(fresh?"\u25CF":s.parcel)+'</span></div>' });
+    L.marker([s.lat,s.lng], { icon }).addTo(revLayer);
+    pts.push([s.lat,s.lng]);
+  });
+  if (me){
+    L.marker([me.lat,me.lng], { icon:L.divIcon({ className:"", iconSize:[16,16], iconAnchor:[8,8],
+      html:'<div class="medot"></div>' }) }).addTo(revLayer);
+    pts.push([me.lat,me.lng]);
+  }
+  if (depotPt){
+    L.marker([depotPt.lat,depotPt.lng], { icon:L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,15],
+      html:'<div class="pin depot"><span>D</span></div>' }) }).addTo(revLayer);
+  }
+
+  if (revStop.lat !== null){
+    if (pts.length > 1) revMap.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom:16 });
+    else revMap.setView([revStop.lat,revStop.lng], 16);
+  }
+}
+
+function nearestBlurb(s){
+  if (s.geoState === "queued" || s.geoState === "working") return "Finding it on the map...";
+  if (s.lat === null) return "This address would not place on the map. Tap <b>Fix address</b> and correct it.";
+  const out = [];
+  if (me) out.push("<b>" + fmtDist(haversine(me,s)) + "</b> from you.");
+  const others = stops.filter(o => o.id !== s.id && o.lat !== null && !o.done);
+  if (others.length){
+    let best = null, bd = Infinity;
+    others.forEach(o => { const d = haversine(o,s); if (d < bd){ bd = d; best = o; } });
+    out.push("Nearest one already scanned: <b>" + esc(best.street) + "</b>, " + fmtDist(bd) +
+             " away \u00B7 parcel " + best.parcel + ".");
+    let far = null, fd = -1;
+    others.forEach(o => { const d = haversine(o,s); if (d > fd){ fd = d; far = o; } });
+    if (others.length > 1 && fd > 3) out.push('<span class="far">Furthest from the rest of the run by ' + fmtDist(fd) + ".</span>");
+  } else {
+    out.push("First stop on the run.");
+  }
+  return out.join("<br>");
+}
+
+/* ================= Ordering ================= */
+function displayList(){
+  const list = active();
+  if (view === "opt" && optOrder){
+    const byId = {}; list.forEach(s => byId[s.id] = s);
+    const out = [];
+    optOrder.forEach(id => { if (byId[id]){ out.push(byId[id]); delete byId[id]; } });
+    Object.keys(byId).forEach(k => out.push(byId[k])); // anything added since
+    return out;
+  }
+  return list;
+}
+
+/* ================= Render ================= */
+function render(){
+  const list = displayList();
+  const routed = view === "opt" && optOrder;
+
+  const ul = $("stopList");
+  ul.innerHTML = "";
+  list.forEach((s,i) => {
+    const li = document.createElement("li");
+    li.className = "stop" + (routed ? " routed" : "");
+    let flag = "";
+    if (s.geoState === "failed") flag = '<div class="flag warn">Not found on map — tap Edit to fix</div>';
+    else if (s.geoState !== "ok") flag = '<div class="flag wait">Placing on map...</div>';
+    if (s.twin) flag += '<div class="flag twin">Another parcel for this address</div>';
+    const who = [s.receiver, s.company].filter(Boolean).join(" \u00B7 ");
+    li.innerHTML =
+      '<div class="seq"><div class="num">'+(i+1)+'</div>' +
+        (routed ? '<div class="parcel">parcel '+s.parcel+'</div>' : '') +
+      '</div>' +
+      '<div class="body"><div class="street">'+esc(s.street||"(no street)")+'</div>' +
+      '<div class="sub">'+esc([s.suburb,s.postcode].filter(Boolean).join(" "))+'</div>'+
+      (who ? '<div class="who">'+esc(who)+'</div>' : '')+flag+'</div>' +
+      '<div class="acts">' +
+        '<button class="mini go" data-go="'+s.id+'">Go</button>' +
+        '<button class="mini done" data-done="'+s.id+'">Done</button>' +
+        '<button class="mini edit" data-edit="'+s.id+'">Edit</button>' +
+        '<button class="mini del" data-del="'+s.id+'">\u2715</button>' +
+      '</div>';
+    ul.appendChild(li);
+  });
+
+  $("emptyMsg").style.display = list.length ? "none" : "block";
+  $("stopCount").textContent = list.length;
+  $("btnOptimise").disabled = list.length < 2;
+  $("btnRoute").disabled = list.length < 1;
+  $("btnClear").disabled = stops.length === 0;
+  $("pillOpt").disabled = !optOrder;
+  $("pillScan").classList.toggle("on", view === "scan");
+  $("pillOpt").classList.toggle("on", view === "opt");
+
+  const doneStops = stops.filter(s => s.done);
+  $("doneWrap").style.display = doneStops.length ? "block" : "none";
+  $("doneCount").textContent = "(" + doneStops.length + ")";
+  const dl = $("doneList"); dl.innerHTML = "";
+  doneStops.forEach(s => {
+    const d = document.createElement("div");
+    d.className = "donerow";
+    d.innerHTML = '<s>'+esc(s.street)+'</s><button class="mini edit" data-undo="'+s.id+'">Undo</button>';
+    dl.appendChild(d);
+  });
+
+  if (optOrder && active().length > 1){ buildLoadOrder(); buildSortSteps(); }
+  else { $("loadPanel").style.display = "none"; $("sortPanel").style.display = "none"; }
+
+  updateGeoStatus();
+  drawMap();
+  save();
+}
+
+/* ================= Map ================= */
+function initMap(){
+  if (mapReady) return;
+  map = L.map("map", { zoomControl:true }).setView([-37.8136,144.9631], 12);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    maxZoom: 19, attribution: "&copy; OpenStreetMap, &copy; CARTO"
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+  meLayer = L.layerGroup().addTo(map);
+  mapReady = true;
+}
+
+function drawMap(){
+  if (!mapReady || tab !== "map") return;
+  markerLayer.clearLayers();
+  const list = displayList().filter(s => s.lat !== null);
+  const pts = [];
+  list.forEach((s,i) => {
+    const icon = L.divIcon({
+      className:"", iconSize:[30,30], iconAnchor:[15,28], popupAnchor:[0,-26],
+      html:'<div class="pin"><span>'+(i+1)+'</span></div>'
+    });
+    const m = L.marker([s.lat,s.lng], { icon }).addTo(markerLayer);
+    m.bindPopup(
+      '<div class="pop-street">'+esc(s.street)+'</div>' +
+      '<div class="pop-sub">'+esc([s.suburb,s.postcode].filter(Boolean).join(" "))+
+        (view==="opt"&&optOrder ? " \u00B7 parcel "+s.parcel : "")+'</div>' +
+      '<div class="pop-btns">' +
+        '<button class="mini go" data-go="'+s.id+'">Navigate</button>' +
+        '<button class="mini done" data-done="'+s.id+'">Done</button>' +
+      '</div>'
+    );
+    pts.push([s.lat,s.lng]);
+  });
+  if (depotPt){
+    const icon = L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,15],
+      html:'<div class="pin depot"><span>D</span></div>' });
+    L.marker([depotPt.lat,depotPt.lng], { icon }).addTo(markerLayer).bindPopup("Depot");
+    pts.push([depotPt.lat,depotPt.lng]);
+  }
+  drawMe();
+  if (me) pts.push([me.lat,me.lng]);
+  if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.18), { maxZoom:15 });
+}
+
+function drawMe(){
+  if (!mapReady || !meLayer) return;
+  meLayer.clearLayers();
+  if (!me) return;
+  L.circle([me.lat,me.lng], { radius: me.acc || 30, color:"#5da8ff", weight:1,
+    fillColor:"#5da8ff", fillOpacity:.12 }).addTo(meLayer);
+  L.marker([me.lat,me.lng], { icon:L.divIcon({ className:"", iconSize:[16,16], iconAnchor:[8,8],
+    html:'<div class="medot"></div>' }) }).addTo(meLayer).bindPopup("You are here");
+}
+
+/* ================= Actions (list + map popups) ================= */
+function navigateTo(s){
+  if (!s) return;
+  window.open("https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+    encodeURIComponent(stopLabel(s)+", Australia"), "_blank");
+}
+function byId(id){ return stops.find(s => s.id === +id); }
+
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (!t || !t.getAttribute) return;
+  const go = t.getAttribute("data-go");
+  const dn = t.getAttribute("data-done");
+  const ed = t.getAttribute("data-edit");
+  const dl = t.getAttribute("data-del");
+  const un = t.getAttribute("data-undo");
+  const st = t.getAttribute("data-step");
+  if (go){ navigateTo(byId(go)); }
+  else if (dn){ const s = byId(dn); if (s){ s.done = true; s.doneSeq = ++doneCounter; if (map) map.closePopup(); render(); } }
+  else if (ed){ openSheetById(+ed); }
+  else if (dl){ stops = stops.filter(s => s.id !== +dl); render(); }
+  else if (un){ const s = byId(un); if (s){ s.done = false; delete s.doneSeq; if (s.geoState==="queued") runGeoQueue(); render(); } }
+  else if (st){
+    sortDone[st] = !sortDone[st];
+    const row = t.closest(".steprow");
+    if (row) row.classList.toggle("ticked", !!sortDone[st]);
+  }
+});
+
+/* ================= Tabs and order pills ================= */
+$("tabList").addEventListener("click", () => {
+  tab = "list";
+  $("tabList").classList.add("on"); $("tabMap").classList.remove("on");
+  $("listWrap").style.display = "block"; $("mapWrap").style.display = "none";
+});
+$("tabMap").addEventListener("click", () => {
+  tab = "map";
+  $("tabMap").classList.add("on"); $("tabList").classList.remove("on");
+  $("mapWrap").style.display = "block"; $("listWrap").style.display = "none";
+  initMap();
+  setTimeout(()=>{ map.invalidateSize(); drawMap(); }, 60);
+});
+$("btnMe").addEventListener("click", ()=>{
+  if (!me){ flashStrip("dup","No GPS fix yet"); return; }
+  initMap(); map.setView([me.lat,me.lng], 16);
+});
+$("btnAll").addEventListener("click", ()=>{ initMap(); drawMap(); });
+$("pillScan").addEventListener("click", ()=>{ view="scan"; render(); });
+$("pillOpt").addEventListener("click", ()=>{ if (optOrder){ view="opt"; render(); } });
+
+/* ================= Optimisation ================= */
+const MODE_NOTES = {
+  crow:"Straight-line distance. Instant, no data needed, and close to right on a tight suburban round.",
+  dist:"Real road distance from the free OSRM router. Needs signal, takes a few seconds.",
+  time:"Real driving time from the free OSRM router, using road speed limits. Needs signal.",
+  traffic:"Live traffic needs a paid Google Directions key, so it is not built in. <b>Road time</b> is the closest free option and has been selected for you."
+};
+$("modeNote").innerHTML = MODE_NOTES.crow;
+
+document.querySelectorAll(".mode").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const m = btn.getAttribute("data-mode");
+    $("modeNote").innerHTML = MODE_NOTES[m];
+    if (m === "traffic"){ mode = "time"; }
+    else mode = m;
+    document.querySelectorAll(".mode").forEach(b =>
+      b.classList.toggle("on", b.getAttribute("data-mode") === (m==="traffic" ? "time" : m)));
+    save();
+  });
+});
+
+async function osrmMatrix(points, want){
+  const coords = points.map(p => p.lng.toFixed(6)+","+p.lat.toFixed(6)).join(";");
+  const url = "https://router.project-osrm.org/table/v1/driving/"+coords+"?annotations="+want;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("osrm");
+  const d = await r.json();
+  const m = want === "duration" ? d.durations : d.distances;
+  if (!m) throw new Error("osrm empty");
+  return m;
+}
+
+/* nearest neighbour from the start, then 2-opt.
+   0 = start point, 1..n = stops, endIdx = where the run finishes (or null) */
+function solve(n, cost, endIdx){
+  let unvisited = [], order = [];
+  for (let i=1;i<=n;i++) unvisited.push(i);
+  let cur = 0;
+  while (unvisited.length){
+    let bi=0, bd=Infinity;
+    unvisited.forEach((v,idx)=>{ const d=cost(cur,v); if (d<bd){bd=d;bi=idx;} });
+    cur = unvisited.splice(bi,1)[0];
+    order.push(cur);
+  }
+  const total = arr => {
+    if (!arr.length) return 0;
+    let c = cost(0, arr[0]);
+    for (let i=0;i<arr.length-1;i++) c += cost(arr[i],arr[i+1]);
+    if (endIdx !== null && endIdx !== undefined) c += cost(arr[arr.length-1], endIdx);
+    return c;
+  };
+  let improved = true, guard = 0;
+  while (improved && guard++ < 80){
+    improved = false;
+    for (let i=0;i<order.length-1;i++){
+      for (let k=i+1;k<order.length;k++){
+        const trial = order.slice(0,i).concat(order.slice(i,k+1).reverse(), order.slice(k+1));
+        if (total(trial) < total(order) - 1e-9){ order = trial; improved = true; }
+      }
+    }
+  }
+  return order;
+}
+
+async function ensureDepot(){
+  const addr = $("depot").value.trim();
+  if (!addr) return null;
+  if (depotPt && depotPt.addr === addr) return depotPt;
+  const hit = await locate(addr + (/australia/i.test(addr) ? "" : ", Australia"));
+  if (hit){ depotPt = { lat:hit.lat, lng:hit.lng, addr }; return depotPt; }
+  return null;
+}
+
+$("btnOptimise").addEventListener("click", async () => {
+  const prog = $("prog");
+  prog.style.display = "block";
+  $("btnOptimise").disabled = true;
+  try{
+    prog.textContent = "Placing depot...";
+    const d = await ensureDepot();
+    const start = me || d;
+    if (!start){
+      prog.style.display="none";
+      flashStrip("dup","Turn on GPS or set a depot address first");
+      $("depot").focus(); $("btnOptimise").disabled=false; return;
+    }
+    const list = active().filter(s => s.lat !== null);
+    if (list.length < 2){
+      prog.style.display="none";
+      flashStrip("dup","Waiting on map positions — try again in a moment");
+      $("btnOptimise").disabled=false; return;
+    }
+    const pts = [start].concat(list);
+    let endIdx = null;
+    if (d){ pts.push(d); endIdx = pts.length - 1; }
+
+    let baseCost;
+    if (mode === "crow"){
+      prog.textContent = "Working out the shortest run...";
+      baseCost = (i,j) => haversine(pts[i], pts[j]);
+    } else {
+      prog.textContent = "Asking the router for real road " + (mode==="time"?"times":"distances") + "...";
+      try{
+        const m = await osrmMatrix(pts, mode === "time" ? "duration" : "distance");
+        baseCost = (i,j) => m[i][j];
+      } catch(err){
+        flashStrip("dup","Router unavailable — used straight-line instead");
+        baseCost = (i,j) => haversine(pts[i], pts[j]);
+      }
+    }
+    const useHist = $("useHistory").checked;
+    const keyOf = p => p.street ? addrKey(p) : null;
+    const cost = !useHist ? baseCost : (i,j) => baseCost(i,j) * adjacencyFactor(keyOf(pts[i]), keyOf(pts[j]));
+    const order = solve(list.length, cost, endIdx);
+    optOrder = order.map(i => pts[i].id);
+    view = "opt";
+    sortDone = {};
+    render();
+    prog.style.display = "none";
+    flashStrip("hit", (me ? "Ordered from where you are" : "Ordered from the depot") +
+      (d ? ", finishing at the depot" : ""));
+  } catch(err){
+    prog.style.display="none";
+    flashStrip("dup","Optimise failed — check signal and try again");
+  } finally {
+    $("btnOptimise").disabled = active().length < 2;
+  }
+});
+
+/* ================= Load order and re-sorting ================= */
+function orderedStops(){
+  if (!optOrder) return [];
+  const byId = {}; active().forEach(s => byId[s.id] = s);
+  return optOrder.map(id => byId[id]).filter(Boolean);
+}
+
+function buildLoadOrder(){
+  const run = orderedStops();
+  const box = $("loadList"); box.innerHTML = "";
+  if (run.length < 2){ $("loadPanel").style.display = "none"; return; }
+  run.slice().reverse().forEach((s,i) => {
+    const row = document.createElement("div");
+    row.className = "loadrow";
+    row.innerHTML = '<i>'+(i+1)+'</i><div>'+esc(s.street)+
+      '<span> \u00B7 parcel '+s.parcel+' \u00B7 drop '+(run.length-i)+'</span></div>';
+    box.appendChild(row);
+  });
+  $("loadPanel").style.display = "block";
+}
+
+/* Which parcels have to move, and where to.
+   current  = parcel numbers as they sit in the van now
+   target   = parcel numbers in run order
+   Keeps the longest run of parcels that are already in the right
+   relative order, so the fewest parcels get handled. */
+function sortSteps(current, target){
+  const pos = {}; target.forEach((p,i) => pos[p] = i);
+  const seq = current.filter(p => pos[p] !== undefined).map(p => pos[p]);
+  const n = seq.length;
+  if (!n) return [];
+  const tails = [], prev = new Array(n).fill(-1), idx = [];
+  for (let i=0;i<n;i++){
+    let lo = 0, hi = tails.length;
+    while (lo < hi){ const mid = (lo+hi)>>1; if (seq[idx[mid]] < seq[i]) lo = mid+1; else hi = mid; }
+    if (lo > 0) prev[i] = idx[lo-1];
+    idx[lo] = i;
+    if (lo === tails.length) tails.push(i);
+  }
+  const keep = new Set();
+  let k = idx[tails.length-1];
+  while (k !== -1){ keep.add(seq[k]); k = prev[k]; }
+  const steps = [];
+  target.forEach((p,i) => { if (!keep.has(i)) steps.push({ parcel:p, position:i+1 }); });
+  return steps;
+}
+
+function buildSortSteps(){
+  const run = orderedStops();
+  const box = $("sortList"); box.innerHTML = "";
+  if (run.length < 2){ $("sortPanel").style.display = "none"; return; }
+  const current = active().map(s => s.parcel);
+  const target = run.map(s => s.parcel);
+  const steps = sortSteps(current, target);
+  const byParcel = {}; run.forEach(s => byParcel[s.parcel] = s);
+
+  if (!steps.length){
+    box.innerHTML = '<div class="loadrow"><i>\u2713</i><div>Everything is already in run order. Nothing to move.</div></div>';
+    $("sortCount").textContent = "";
+    $("sortPanel").style.display = "block";
+    return;
+  }
+  $("sortCount").textContent = steps.length + " of " + target.length;
+
+  const pull = document.createElement("div");
+  pull.className = "steprow" + (sortDone["pull"] ? " ticked" : "");
+  pull.innerHTML = '<button class="tick" data-step="pull">\u2713</button>' +
+    '<div>Pull out <b>parcel ' + steps.map(s=>s.parcel).join(", ") + '</b> and set them aside.</div>';
+  box.appendChild(pull);
+
+  steps.forEach(st => {
+    const s = byParcel[st.parcel];
+    const row = document.createElement("div");
+    row.className = "steprow" + (sortDone["p"+st.parcel] ? " ticked" : "");
+    row.innerHTML = '<button class="tick" data-step="p'+st.parcel+'">\u2713</button>' +
+      '<div>Slot <b>parcel '+st.parcel+'</b> ('+esc(s ? s.street : "")+') back in at position <b>'+st.position+'</b>.</div>';
+    box.appendChild(row);
+  });
+  $("sortPanel").style.display = "block";
+}
+
+/* ================= Google Maps hand-off ================= */
+$("btnRoute").addEventListener("click", async () => {
+  const list = displayList();
+  if (!list.length) return;
+  const pts = list.map(s => stopLabel(s) + ", Australia");
+  const depotAddr = $("depot").value.trim();
+  if (depotAddr) pts.push(depotAddr + (/australia/i.test(depotAddr) ? "" : ", Australia"));
+  const box = $("legs"); box.innerHTML = "";
+  let i = 0, leg = 1;
+  while (i < pts.length){
+    const chunk = pts.slice(i, i+10);
+    const dest = chunk[chunk.length-1];
+    const wps = chunk.slice(0,-1);
+    let url = "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination="+encodeURIComponent(dest);
+    if (wps.length) url += "&waypoints="+encodeURIComponent(wps.join("|"));
+    if (i === 0 && me) url += "&origin="+encodeURIComponent(me.lat.toFixed(6)+","+me.lng.toFixed(6));
+    const last = Math.min(i+chunk.length, pts.length);
+    const isFinal = last === pts.length && depotAddr;
+    const b = document.createElement("button");
+    b.className = "btn btn-amber";
+    b.textContent = isFinal
+      ? (chunk.length === 1 ? "Final leg: back to depot" : "Leg "+leg+": stops "+(i+1)+"\u2013"+(last-1)+", then depot")
+      : "Leg "+leg+": stops "+(i+1)+"\u2013"+last;
+    b.addEventListener("click", ()=>window.open(url,"_blank"));
+    box.appendChild(b);
+    i += chunk.length; leg++;
+  }
+  $("routePanel").style.display = "block";
+  $("routePanel").scrollIntoView({ behavior:"smooth", block:"center" });
+});
+
+/* ================= Edit sheet ================= */
+function openSheet(index, prefill, title){
+  editingIndex = index;
+  const src = index !== null ? stops[index] : (prefill||{});
+  $("sheetTitle").textContent = title || (index !== null ? "Edit stop" : "Add stop");
+  $("edStreet").value = src.street||""; $("edSuburb").value = src.suburb||""; $("edPostcode").value = src.postcode||"";
+  $("sheetBack").style.display="block"; $("sheet").style.display="block";
+}
+function openSheetById(id){ openSheet(stops.findIndex(s=>s.id===id)); }
+function closeSheet(){ $("sheetBack").style.display="none"; $("sheet").style.display="none"; editingIndex=null; pendingStop=null; }
+$("edCancel").addEventListener("click", closeSheet);
+$("sheetBack").addEventListener("click", closeSheet);
+$("edSave").addEventListener("click", () => {
+  const street=$("edStreet").value.trim(), suburb=$("edSuburb").value.trim(), postcode=$("edPostcode").value.trim();
+  if (!street){ $("edStreet").focus(); return; }
+  if (editingIndex !== null && editingIndex >= 0){
+    const s = stops[editingIndex];
+    s.street=tidy(street); s.suburb=tidy(suburb); s.postcode=postcode;
+    s.lat=null; s.lng=null; s.geoState="queued";
+    optOrder = null; view = "scan";
+    closeSheet(); render(); runGeoQueue();
+  } else {
+    const p = pendingStop || {};
+    closeSheet();
+    const s = addStop({ street, suburb, postcode, con:p.con||"", article:p.article||"",
+      receiver:p.receiver||"", company:p.company||"", phone:p.phone||"" });
+    openReveal(s);
+  }
+});
+
+$("revNext").addEventListener("click", closeReveal);
+$("revEdit").addEventListener("click", ()=>{
+  const id = revStop && revStop.id;
+  closeReveal();
+  if (id) openSheetById(id);
+});
+$("reveal").addEventListener("click", e => { if (e.target.id === "reveal") closeReveal(); });
+
+/* ================= Manual panel ================= */
+$("btnManual").addEventListener("click", ()=>{
+  const p = $("manualPanel");
+  p.style.display = p.style.display === "none" ? "block" : "none";
+});
+$("btnParsePaste").addEventListener("click", ()=>{
+  const p = parseLabel($("pasteRaw").value);
+  if (!p){ flashStrip("dup","No address in that text"); return; }
+  $("manStreet").value=p.street||""; $("manSuburb").value=p.suburb||""; $("manPostcode").value=p.postcode||"";
+  pendingStop = p;
+  flashStrip("hit","Read: " + (p.street || p.suburb));
+});
+$("btnManAdd").addEventListener("click", ()=>{
+  const street = $("manStreet").value.trim();
+  if (!street){ $("manStreet").focus(); return; }
+  const p = { street, suburb:$("manSuburb").value.trim(), postcode:$("manPostcode").value.trim(),
+    con:(pendingStop&&pendingStop.con)||"", article:(pendingStop&&pendingStop.article)||"",
+    receiver:(pendingStop&&pendingStop.receiver)||"" };
+  if (sameParcel(p)){ flashStrip("dup","Already on the run"); return; }
+  const s = addStop(p);
+  $("manStreet").value=""; $("manSuburb").value=""; $("manPostcode").value=""; $("pasteRaw").value="";
+  pendingStop = null;
+  flashStrip("hit","Parcel "+s.parcel+": "+s.street);
+  openReveal(s);
+});
+
+/* ================= Misc ================= */
+function offerNewRun(resetAll){
+  if (!stops.length){ wipe(resetAll); return; }
+  pendingReset = resetAll;
+  const n = active().length;
+  $("histNote").textContent = resetAll
+    ? "This also clears your depot address, your history toggle and every saved setting on this phone. Saved delivery history itself is kept."
+    : "Your depot address stays. " + n + " stop" + (n===1?"":"s") + " still on the run will be cleared.";
+  $("histBack").style.display = "block"; $("histSheet").style.display = "block";
+}
+function closeHistSheet(){ $("histBack").style.display = "none"; $("histSheet").style.display = "none"; }
+
+$("histSave").addEventListener("click", () => {
+  const got = saveRunToHistory();
+  closeHistSheet();
+  wipe(pendingReset);
+  renderHistoryNote();
+  flashStrip(got ? "hit" : "dup",
+    got ? "Run saved — " + historyStore.runs.length + " saved in total" : "Nothing with a map position to save");
+});
+$("histSkip").addEventListener("click", () => { closeHistSheet(); wipe(pendingReset); });
+$("histCancel").addEventListener("click", closeHistSheet);
+$("histBack").addEventListener("click", closeHistSheet);
+
+$("btnScan").addEventListener("click", startScanner);
+$("btnClear").addEventListener("click", () => offerNewRun(false));
+$("btnResetAll").addEventListener("click", () => offerNewRun(true));
+$("bannerFresh").addEventListener("click", () => offerNewRun(false));
+$("depot").addEventListener("change", async ()=>{
+  depotPt = null;
+  $("depotNote").textContent = "Finding the depot...";
+  const d = await ensureDepot();
+  $("depotNote").textContent = d
+    ? "Depot found. The run starts from wherever you are and finishes back here."
+    : ($("depot").value.trim() ? "Could not find that address. Try adding the postcode." :
+       "The run starts from wherever you are and finishes back here.");
+  render();
+});
+
+window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase, cleanStreet,
+  haversine, solve, sortSteps, addStop, sameParcel, addrKey, adjacencyFactor, saveRunToHistory,
+  get stops(){ return stops; }, get historyStore(){ return historyStore; } };
+
+load();
+loadHistoryStore();
+renderHistoryNote();
+$("useHistory").addEventListener("change", save);
+render();
+startWatch();
+runGeoQueue();
+</script>
+</body>
+</html>
