@@ -1024,7 +1024,7 @@ function openReveal(s){
   setTimeout(()=>{
     if (!revMap && window.L){
       revMap = L.map("revMap", { zoomControl:false, attributionControl:false });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom:19 }).addTo(revMap);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:"&copy; OpenStreetMap" }).addTo(revMap);
       revLayer = L.layerGroup().addTo(revMap);
       revMap.setView([-37.8836,145.0553], 13);
     }
@@ -1162,8 +1162,8 @@ function render(){
 function initMap(){
   if (mapReady) return;
   map = L.map("map", { zoomControl:true }).setView([-37.8136,144.9631], 12);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    maxZoom: 19, attribution: "&copy; OpenStreetMap, &copy; CARTO"
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: "&copy; OpenStreetMap"
   }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
   meLayer = L.layerGroup().addTo(map);
