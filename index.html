@@ -134,8 +134,11 @@
   .stoplabel.done{opacity:.55}
   #placeBar{display:none;position:sticky;top:0;z-index:900;background:var(--amber);color:var(--amber-ink);
     border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;font-size:13.5px;font-weight:700;line-height:1.35}
-  body.placing #placeBar{display:block}
+  body.placing #placeBar,body.adding #placeBar{display:block}
+  body.adding #placeBar{background:var(--green);color:#04240f}
   body.placing #map{outline:2px solid var(--amber);outline-offset:-2px}
+  body.adding #map{outline:2px solid var(--green);outline-offset:-2px}
+  .maptools .mini.adding{background:var(--green);color:#04240f;border-color:var(--green)}
   .pin{
     width:30px;height:30px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);
     background:var(--amber);border:2px solid #14181f;
@@ -313,6 +316,7 @@
       <button class="mini edit" id="btnMe">On me</button>
       <button class="mini edit" id="btnAll">Fit all</button>
       <button class="mini edit" id="btnLabels">Labels</button>
+      <button class="mini edit" id="btnAddHere">Add stop</button>
       <button class="mini edit" id="btnBig">Expand</button>
     </div>
     <div id="map"></div>
@@ -595,6 +599,7 @@ function wipe(all){
   stops = []; optOrder = null; view = "scan"; nextId = 1; sortDone = {};
   mapUserMoved = false; fittedOnce = false; lastFitKey = ""; placing = null;
   document.body.classList.remove("placing");
+  if (adding) stopAdding();
   $("routePanel").style.display = "none";
   $("loadPanel").style.display = "none";
   $("sortPanel").style.display = "none";
@@ -1663,7 +1668,7 @@ function render(){
    map. Any pan or pinch latches mapUserMoved and the map is left alone.
    ========================================================== */
 let mapUserMoved = false, mapProg = 0, fittedOnce = false, lastFitKey = "";
-let showLabels = true, placing = null, placeMarker = null;
+let showLabels = true, placing = null, adding = false, addBusy = false;
 
 function progMap(fn){
   mapProg++;
@@ -1680,7 +1685,11 @@ function initMap(){
   meLayer = L.layerGroup().addTo(map);
   map.on("dragstart", () => { mapUserMoved = true; });
   map.on("zoomstart", () => { if (!mapProg) mapUserMoved = true; });
-  map.on("click", e => { if (placing && e && e.latlng) dropPlacedPin(e.latlng.lat, e.latlng.lng); });
+  map.on("click", e => {
+    if (!e || !e.latlng) return;
+    if (placing) dropPlacedPin(e.latlng.lat, e.latlng.lng);
+    else if (adding) addStopAt(e.latlng.lat, e.latlng.lng);
+  });
   mapReady = true;
 }
 
@@ -1740,10 +1749,84 @@ function drawMap(){
   lastFitKey = key;
 }
 
+/* ---- adding a stop by tapping the map ----
+   For an address the label got wrong, or a drop that never had a label at
+   all, the fastest thing he can do is point at it. The tap is the truth, so
+   the stop is pinned straight away and the address is filled in afterwards
+   by asking what is at that point. If nothing is, it still becomes a real
+   stop and he can name it. */
+async function reverseLookup(lat, lng){
+  try{
+    const r = await fetch("https://photon.komoot.io/reverse?limit=1&lang=en&lat=" +
+      lat.toFixed(6) + "&lon=" + lng.toFixed(6));
+    if (r.ok){
+      const hits = photonHits(await r.json());
+      if (hits.length) return hitToStop(hits[0]);
+    }
+  } catch(e){}
+  await sleep(400);
+  try{
+    const r = await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=" +
+      lat.toFixed(6) + "&lon=" + lng.toFixed(6));
+    if (r.ok){
+      const d = await r.json();
+      const hits = nominatimHits(d && d.lat ? [d] : []);
+      if (hits.length) return hitToStop(hits[0]);
+    }
+  } catch(e){}
+  return null;
+}
+
+async function addStopAt(lat, lng){
+  if (addBusy) return null;
+  addBusy = true;
+  flashStrip("hit", "Finding what is at that spot...");
+  let found = null;
+  try{ found = await reverseLookup(lat, lng); } catch(e){}
+  const named = !!(found && found.street);
+  const s = addStop({
+    street: named ? found.street : "Dropped pin",
+    suburb: (found && found.suburb) || "",
+    postcode: (found && found.postcode) || "",
+    lat, lng, pinned:true, precision:"exact"
+  });
+  addBusy = false;
+  if (named){
+    flashStrip("hit", "Parcel " + s.parcel + ": " + s.street);
+    openReveal(s);
+  } else {
+    /* nothing at that point, so send him straight to naming it — the pin is
+       already saved, he only has to type the street */
+    flashStrip("dup", "Pin dropped — give it an address");
+    openSheet(s.id, null, "Name this stop");
+  }
+  return s;
+}
+
+function startAdding(){
+  if (placing) stopPlacing();
+  adding = true;
+  document.body.classList.add("adding");
+  $("btnAddHere").classList.add("adding");
+  $("btnAddHere").textContent = "Tapping";
+  $("placeBar").innerHTML = "Tap the map to drop a stop there. It stays on until you tap this bar.";
+  if (tab !== "map") $("tabMap").click();
+  render();
+}
+
+function stopAdding(){
+  adding = false;
+  document.body.classList.remove("adding");
+  $("btnAddHere").classList.remove("adding");
+  $("btnAddHere").textContent = "Add stop";
+  render();
+}
+
 /* ---- putting a pin where the driver knows the stop really is ---- */
 function startPlacing(id){
   const s = byId(id);
   if (!s) return;
+  if (adding) stopAdding();
   placing = s.id;
   document.body.classList.add("placing");
   $("placeBar").innerHTML = "Tap the map where <b>" + esc(s.street) + "</b> really is. Tap this bar to cancel.";
@@ -1850,7 +1933,14 @@ $("btnBig").addEventListener("click", ()=>{
   $("btnBig").classList.toggle("on", full);
   setTimeout(()=>{ if (map) map.invalidateSize(); }, 80);
 });
-$("placeBar").addEventListener("click", ()=>{ if (placing){ stopPlacing(); flashStrip("dup","Pin move cancelled"); } });
+$("placeBar").addEventListener("click", ()=>{
+  if (placing){ stopPlacing(); flashStrip("dup","Pin move cancelled"); }
+  else if (adding){ stopAdding(); flashStrip("dup","Finished adding stops"); }
+});
+$("btnAddHere").addEventListener("click", ()=>{
+  initMap();
+  if (adding) stopAdding(); else startAdding();
+});
 $("btnDropFailed").addEventListener("click", ()=>{
   const gone = stops.filter(s => !s.done && s.geoState === "failed").length;
   if (!gone) return;
@@ -2331,6 +2421,8 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   photonHits, nominatimHits, photonUrl, hitToStop, normStreetName, stopTip, scanConfig, scannerOptions,
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
+  startAdding, stopAdding, addStopAt, reverseLookup,
+  get adding(){ return adding; },
   get stops(){ return stops; }, set stops(v){ stops = v; },
   get optOrder(){ return optOrder; }, set optOrder(v){ optOrder = v; },
   get view(){ return view; }, set view(v){ view = v; },
