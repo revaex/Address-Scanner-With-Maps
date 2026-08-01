@@ -236,28 +236,52 @@
   /* top-anchored and scrollable so the on-screen keyboard can never bury the
      Save button, which is why fixing an address used to fail so often */
   #sheet{position:fixed;left:0;right:0;top:0;bottom:0;z-index:1201;display:none;background:var(--panel);
-    border-top:2px solid var(--amber);padding:0;max-width:600px;margin:0 auto;overflow:hidden}
-  #sheet .sheet-scroll{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
-    padding:calc(16px + env(safe-area-inset-top)) 16px 108px}
-  #sheet h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:4px}
-  #sheet .btn-row{position:fixed;left:0;right:0;bottom:0;max-width:600px;margin:0 auto;
-    background:var(--panel);border-top:1px solid var(--line);padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
+    border-top:2px solid var(--amber);padding:0;max-width:600px;margin:0 auto;overflow:hidden;flex-direction:column}
+  #sheet .sheet-top{flex:none;padding:calc(12px + env(safe-area-inset-top)) 14px 10px;position:relative;z-index:30}
+  #sheet h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
+  #sheet .sheet-top input[type=text]{font-size:17px;padding:13px 12px}
+  .edwhere{font-size:12.5px;color:var(--ink-dim);margin-top:6px;min-height:17px}
+  .edwhere b{color:var(--ink)}
+  .edwhere.rough b{color:var(--amber)}
+  .edwhere.mine b{color:var(--green)}
+  #sheet .sheet-bottom{flex:none;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+    background:var(--panel);border-top:1px solid var(--line)}
+  #sheet .btn-row{margin-top:8px}
   .sugbox{position:relative}
-  .suglist{list-style:none;margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:none}
+  .suglist{list-style:none;margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:none;
+    position:absolute;left:0;right:0;top:100%;z-index:40;box-shadow:0 8px 22px rgba(0,0,0,.55);max-height:52vh;overflow-y:auto}
   .suglist.on{display:block}
   .suglist li{padding:11px 12px;font-size:14.5px;background:var(--panel-2);border-bottom:1px solid var(--line);cursor:pointer}
   .suglist li:last-child{border-bottom:none}
   .suglist li b{display:block;font-weight:700}
   .suglist li span{color:var(--ink-dim);font-size:12.5px}
   .suglist li.hint{color:var(--ink-dim);font-size:13px;cursor:default}
-  #edMap{height:210px;border-radius:12px;margin-top:8px;border:1px solid var(--line);background:var(--panel-2)}
-  .edmapnote{font-size:12.5px;color:var(--ink-dim);margin-top:6px;line-height:1.45}
+  #edMap{flex:1 1 auto;min-height:180px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .edmapnote{font-size:12.5px;color:var(--ink-dim);line-height:1.45}
   .edmapnote b{color:var(--amber)}
+  #edUnpin{margin-top:8px;padding:10px;font-size:13px}
 
   .modalBack{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:1200}
   .modal{position:fixed;left:0;right:0;bottom:0;z-index:1201;display:none;background:var(--panel);border-top:2px solid var(--amber);border-radius:18px 18px 0 0;padding:18px 16px 26px;max-width:600px;margin:0 auto}
   .modal h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:4px}
   .btn-stack{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+
+  .modal.runs{top:0;bottom:0;border-radius:0;padding:0;overflow:hidden}
+  .modal.runs .runs-scroll{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:calc(16px + env(safe-area-inset-top)) 16px 96px}
+  .modal.runs .btn-row{position:fixed;left:0;right:0;bottom:0;max-width:600px;margin:0 auto;
+    background:var(--panel);border-top:1px solid var(--line);padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
+  .runcard{border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden;background:var(--panel-2)}
+  .runhead{width:100%;text-align:left;background:transparent;color:var(--ink);padding:12px 13px;font-size:14.5px;border-radius:0}
+  .runhead b{display:block;font-size:15px}
+  .runhead span{color:var(--ink-dim);font-size:12.5px;font-weight:600}
+  .runbody{display:none;padding:0 13px 12px}
+  .runcard.open .runbody{display:block}
+  .runstop{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:13.5px}
+  .runstop i{font-style:normal;font-weight:800;color:var(--amber);min-width:30px;font-variant-numeric:tabular-nums}
+  .runstop .rs{flex:1;min-width:0}
+  .runstop .rs span{display:block;color:var(--ink-dim);font-size:12px}
+  .runstop.miss i{color:var(--ink-dim)}
 </style>
 </head>
 <body>
@@ -362,6 +386,16 @@
       Use my past runs to fine-tune the order
     </label>
     <div class="note" id="historyNote">No runs saved yet.</div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn btn-ghost" id="btnViewRuns">View saved runs</button>
+      <button class="btn btn-ghost" id="btnExportCsv">Export</button>
+    </div>
+    <div class="note" id="storeNote" style="margin-top:10px"></div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn btn-ghost" id="btnBackup" style="font-size:13px;padding:10px">Save a backup file</button>
+      <button class="btn btn-ghost" id="btnRestore" style="font-size:13px;padding:10px">Restore a backup</button>
+    </div>
+    <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
   </div>
 
   <div class="panel">
@@ -426,25 +460,35 @@
 
 <div id="sheetBack"></div>
 <div id="sheet">
-  <div class="sheet-scroll">
+  <div class="sheet-top">
     <h3 id="sheetTitle">Check this stop</h3>
-    <label for="edStreet">Address</label>
     <div class="sugbox">
-      <input type="text" id="edStreet" placeholder="11/20 Toorak Ave" autocomplete="off">
+      <input type="text" id="edStreet" placeholder="Type the address, or tap the map" autocomplete="off">
       <ul class="suglist" id="edSug"></ul>
     </div>
-    <label for="edSuburb">Suburb</label>
-    <input type="text" id="edSuburb" autocomplete="off">
-    <label for="edPostcode">Postcode</label>
-    <input type="text" id="edPostcode" inputmode="numeric" autocomplete="off">
-    <label>Where the pin sits</label>
-    <div id="edMap"></div>
-    <div class="edmapnote" id="edMapNote">Drag the pin, or tap the map, to put this stop exactly where you know it is. A pin you place by hand is <b>kept</b> and never moved by the address lookup.</div>
-    <button class="btn btn-ghost" style="margin-top:10px" id="edUnpin">Undo my pin, look the address up again</button>
+    <div class="edwhere" id="edWhere"></div>
+  </div>
+  <div id="edMap"></div>
+  <div class="sheet-bottom">
+    <div class="edmapnote" id="edMapNote">Drag the pin, or tap the map, to put this stop exactly where you know it is.</div>
+    <button class="btn btn-ghost" id="edUnpin">Undo my pin, look the address up again</button>
+    <div class="btn-row">
+      <button class="btn btn-amber" id="edSave">Save stop</button>
+      <button class="btn btn-ghost" id="edCancel">Discard</button>
+    </div>
+  </div>
+</div>
+
+<div id="runsBack" class="modalBack"></div>
+<div id="runsSheet" class="modal runs">
+  <div class="runs-scroll">
+    <h3>Saved runs</h3>
+    <div class="note" id="runsIntro" style="margin-top:2px"></div>
+    <div id="runsList"></div>
   </div>
   <div class="btn-row">
-    <button class="btn btn-amber" id="edSave">Save stop</button>
-    <button class="btn btn-ghost" id="edCancel">Discard</button>
+    <button class="btn btn-ghost" id="runsExport">Export</button>
+    <button class="btn btn-amber" id="runsClose">Close</button>
   </div>
 </div>
 
@@ -476,6 +520,7 @@ let map = null, markerLayer = null, meLayer = null, mapReady = false;
 let me = null;           // {lat,lng,acc}
 let sortDone = {};       // ticked re-sort steps, in memory only
 let doneCounter = 0;     // increments each time a stop is marked done, so we know the real order they were delivered in
+let runStartedAt = null; // when the first parcel of this run was scanned
 let pendingReset = false;
 
 /* ================= Delivery history (this phone only) =================
@@ -523,12 +568,16 @@ function saveRunToHistory(){
   if (!relevant.length) return false;
   const entry = {
     savedAt: Date.now(),
+    startedAt: runStartedAt || null,
     depot: depotPt ? depotPt.addr : ($("depot").value.trim() || ""),
     stops: relevant.map(s => ({ key:addrKey(s), street:s.street, suburb:s.suburb, postcode:s.postcode,
-      lat:s.lat, lng:s.lng, parcel:s.parcel, done:!!s.done, doneSeq: s.doneSeq==null ? null : s.doneSeq }))
+      lat:s.lat, lng:s.lng, parcel:s.parcel, done:!!s.done,
+      doneSeq: s.doneSeq==null ? null : s.doneSeq,
+      doneAt: s.doneAt==null ? null : s.doneAt,
+      receiver: s.receiver||"", con: s.con||"", article: s.article||"", pinned: !!s.pinned }))
   };
   historyStore.runs.push(entry);
-  if (historyStore.runs.length > 60) historyStore.runs = historyStore.runs.slice(-60);
+  if (historyStore.runs.length > 200) historyStore.runs = historyStore.runs.slice(-200);
 
   const delivered = entry.stops.filter(s => s.done && s.doneSeq != null).sort((a,b)=>a.doneSeq-b.doneSeq);
   for (let i=0;i<delivered.length-1;i++){
@@ -560,7 +609,7 @@ function save(){
   if (!loaded || !storageOk) return;
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
-      stops, nextId, optOrder, view, mode, depotPt, doneCounter,
+      stops, nextId, optOrder, view, mode, depotPt, doneCounter, runStartedAt,
       useHistory: $("useHistory").checked,
       depot: $("depot").value, saved: Date.now()
     }));
@@ -581,6 +630,7 @@ function load(){
   mode = d.mode || "crow";
   depotPt = d.depotPt || null;
   doneCounter = d.doneCounter || 0;
+  runStartedAt = d.runStartedAt || null;
   $("useHistory").checked = d.useHistory !== false;
   if (d.depot) $("depot").value = d.depot;
 
@@ -613,6 +663,7 @@ function showSaveFlag(){
 
 function wipe(all){
   stops = []; optOrder = null; view = "scan"; nextId = 1; sortDone = {};
+  runStartedAt = null;
   mapUserMoved = false; fittedOnce = false; lastFitKey = ""; placing = null;
   document.body.classList.remove("placing");
   if (adding) stopAdding();
@@ -1174,6 +1225,7 @@ function addStop(p){
      climbing even after a bad scan is deleted — stops.length would reuse
      a number that is already sitting on a box */
   const nextParcel = stops.reduce((m,x) => Math.max(m, x.parcel||0), 0) + 1;
+  if (!runStartedAt) runStartedAt = Date.now();
   const hasPt = typeof p.lat === "number" && typeof p.lng === "number";
   const s = {
     id: nextId++, parcel: nextParcel,
@@ -1956,10 +2008,10 @@ document.addEventListener("click", e => {
   const pl = t.getAttribute("data-place");
   if (pl){ startPlacing(+pl); }
   else if (go){ navigateTo(byId(go)); }
-  else if (dn){ const s = byId(dn); if (s){ s.done = true; s.doneSeq = ++doneCounter; if (map) map.closePopup(); render(); } }
+  else if (dn){ const s = byId(dn); if (s){ s.done = true; s.doneSeq = ++doneCounter; s.doneAt = Date.now(); if (map) map.closePopup(); render(); } }
   else if (ed){ openSheetById(+ed); }
   else if (dl){ stops = stops.filter(s => s.id !== +dl); render(); }
-  else if (un){ const s = byId(un); if (s){ s.done = false; delete s.doneSeq; if (s.geoState==="queued") runGeoQueue(); render(); } }
+  else if (un){ const s = byId(un); if (s){ s.done = false; delete s.doneSeq; delete s.doneAt; if (s.geoState==="queued") runGeoQueue(); render(); } }
   else if (st){
     sortDone[st] = !sortDone[st];
     const row = t.closest(".steprow");
@@ -2451,7 +2503,282 @@ $("btnReadText").addEventListener("click", async ()=>{
 });
 
 /* ==========================================================
+   Getting the runs back out
+
+   Everything lives in localStorage on this one phone, which is fine for the
+   app but is not something a person can read, and a browser can throw it away
+   — clearing site data wipes it, and phones evict storage from sites that go
+   unused. So there are three ways out: a viewer to read the runs on the
+   phone, a spreadsheet export for an actual record, and a backup file that
+   can be restored onto another phone.
+   ========================================================== */
+function pad2(n){ return (n < 10 ? "0" : "") + n; }
+
+function fmtDateTime(ts){
+  if (!ts) return "";
+  const d = new Date(ts);
+  return pad2(d.getDate()) + "/" + pad2(d.getMonth()+1) + "/" + d.getFullYear() +
+    " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+}
+function fmtDate(ts){ return ts ? fmtDateTime(ts).split(" ")[0] : ""; }
+function fmtTime(ts){ return ts ? fmtDateTime(ts).split(" ")[1] : ""; }
+
+function csvCell(v){
+  const t = v == null ? "" : String(v);
+  return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+}
+
+const CSV_COLUMNS = ["run","run_date","run_started","run_saved","run_saved_iso","depot",
+  "parcel","address","suburb","postcode","latitude","longitude","pin_placed_by_hand",
+  "receiver","connote","article","delivered","delivered_order","delivered_time","delivered_iso"];
+
+function runRows(entry, label){
+  const delivered = entry.stops.filter(x => x.done && x.doneSeq != null).sort((a,b)=>a.doneSeq-b.doneSeq);
+  const rank = {};
+  delivered.forEach((x,i) => { rank[x.parcel] = i + 1; });
+  return entry.stops.slice().sort((a,b) => (a.parcel||0) - (b.parcel||0)).map(x => ({
+    run: label,
+    run_date: fmtDate(entry.startedAt || entry.savedAt),
+    run_started: fmtDateTime(entry.startedAt),
+    run_saved: fmtDateTime(entry.savedAt),
+    run_saved_iso: entry.savedAt ? new Date(entry.savedAt).toISOString() : "",
+    depot: entry.depot || "",
+    parcel: x.parcel,
+    address: x.street || "",
+    suburb: x.suburb || "",
+    postcode: x.postcode || "",
+    latitude: x.lat == null ? "" : x.lat,
+    longitude: x.lng == null ? "" : x.lng,
+    pin_placed_by_hand: x.pinned ? "yes" : "no",
+    receiver: x.receiver || "",
+    connote: x.con || "",
+    article: x.article || "",
+    delivered: x.done ? "yes" : "no",
+    delivered_order: rank[x.parcel] || "",
+    delivered_time: fmtDateTime(x.doneAt),
+    delivered_iso: x.doneAt ? new Date(x.doneAt).toISOString() : ""
+  }));
+}
+
+/* the current run is included, marked in progress, so he can pull a record at
+   the end of the day without having to close the run off first */
+function currentRunEntry(){
+  const relevant = stops.filter(s => s.lat !== null || s.street);
+  if (!relevant.length) return null;
+  return {
+    savedAt: null,
+    startedAt: runStartedAt || null,
+    depot: depotPt ? depotPt.addr : ($("depot").value.trim() || ""),
+    stops: relevant.map(s => ({ street:s.street, suburb:s.suburb, postcode:s.postcode,
+      lat:s.lat, lng:s.lng, parcel:s.parcel, done:!!s.done, doneSeq:s.doneSeq==null?null:s.doneSeq,
+      doneAt:s.doneAt==null?null:s.doneAt, receiver:s.receiver||"", con:s.con||"",
+      article:s.article||"", pinned:!!s.pinned }))
+  };
+}
+
+function historyRows(includeCurrent){
+  const rows = [];
+  historyStore.runs.forEach((entry, i) => {
+    runRows(entry, "run " + (i+1) + " of " + historyStore.runs.length).forEach(r => rows.push(r));
+  });
+  if (includeCurrent){
+    const cur = currentRunEntry();
+    if (cur) runRows(cur, "current run (not saved yet)").forEach(r => rows.push(r));
+  }
+  return rows;
+}
+
+function historyCsv(includeCurrent){
+  const rows = historyRows(includeCurrent);
+  const lines = [CSV_COLUMNS.join(",")];
+  rows.forEach(r => lines.push(CSV_COLUMNS.map(c => csvCell(r[c])).join(",")));
+  return lines.join("\r\n");
+}
+
+function historyBackup(){
+  return JSON.stringify({
+    app: "address-scanner-with-maps",
+    backupVersion: 1,
+    appVersion: typeof APP_VERSION === "string" ? APP_VERSION : "",
+    exportedAt: new Date().toISOString(),
+    runs: historyStore.runs,
+    adjacency: historyStore.adjacency
+  }, null, 1);
+}
+
+function stamp(){
+  const d = new Date();
+  return d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate()) + "-" + pad2(d.getHours()) + pad2(d.getMinutes());
+}
+
+/* share sheet first — on a phone that is what gets it into email or Drive.
+   Falls back to a plain download. */
+async function shareOrDownload(name, text, mime){
+  try{
+    const file = new File([text], name, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files:[file] }) && navigator.share){
+      await navigator.share({ files:[file], title:name });
+      return "shared";
+    }
+  } catch(e){
+    if (e && e.name === "AbortError") return "cancelled";
+  }
+  try{
+    const url = URL.createObjectURL(new Blob([text], { type: mime }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 4000);
+    return "downloaded";
+  } catch(e){ return "failed"; }
+}
+
+function rebuildAdjacency(){
+  const adj = {};
+  historyStore.runs.forEach(entry => {
+    const delivered = (entry.stops||[]).filter(s => s.done && s.doneSeq != null && s.key)
+      .sort((a,b)=>a.doneSeq-b.doneSeq);
+    for (let i=0;i<delivered.length-1;i++){
+      const k = delivered[i].key + ">" + delivered[i+1].key;
+      adj[k] = (adj[k]||0) + 1;
+    }
+  });
+  historyStore.adjacency = adj;
+}
+
+/* merge rather than replace, and match on savedAt so restoring the same file
+   twice cannot double up the runs */
+function importBackup(text){
+  let d = null;
+  try{ d = JSON.parse(text); } catch(e){ return { ok:false, message:"That file is not a backup this app can read." }; }
+  if (!d || !Array.isArray(d.runs)) return { ok:false, message:"That file has no saved runs in it." };
+  const have = {};
+  historyStore.runs.forEach(r => { have[r.savedAt] = true; });
+  let added = 0;
+  d.runs.forEach(r => {
+    if (!r || !Array.isArray(r.stops)) return;
+    if (r.savedAt && have[r.savedAt]) return;
+    historyStore.runs.push(r);
+    if (r.savedAt) have[r.savedAt] = true;
+    added++;
+  });
+  historyStore.runs.sort((a,b) => (a.savedAt||0) - (b.savedAt||0));
+  if (historyStore.runs.length > 200) historyStore.runs = historyStore.runs.slice(-200);
+  rebuildAdjacency();
+  saveHistoryStore();
+  return { ok:true, added, total:historyStore.runs.length,
+    message: added ? ("Added " + added + " run" + (added===1?"":"s") + ". " + historyStore.runs.length + " saved in total.")
+                   : "Nothing new in that file — those runs were already saved." };
+}
+
+/* ---- the on-phone viewer ---- */
+function renderRunList(){
+  const box = $("runsList");
+  box.innerHTML = "";
+  const entries = [];
+  const cur = currentRunEntry();
+  if (cur) entries.push({ entry:cur, current:true });
+  historyStore.runs.slice().reverse().forEach(e => entries.push({ entry:e, current:false }));
+  if (!entries.length){
+    $("runsIntro").textContent = "Nothing recorded yet. Runs are kept when you tap Save this run as you start a new one.";
+    return;
+  }
+  $("runsIntro").innerHTML = "Newest first. Tap a run to see every stop and when it was delivered. " +
+    "This is held on this phone only, so <b>export it</b> if you need to keep it.";
+  entries.forEach((item, idx) => {
+    const e = item.entry;
+    const total = e.stops.length;
+    const done = e.stops.filter(x => x.done).length;
+    const times = e.stops.filter(x => x.doneAt).map(x => x.doneAt).sort((a,b)=>a-b);
+    const card = document.createElement("div");
+    card.className = "runcard";
+    const when = item.current ? "In progress" : fmtDateTime(e.savedAt);
+    const span = times.length > 1 ? (fmtTime(times[0]) + " to " + fmtTime(times[times.length-1])) : "";
+    card.innerHTML = '<button class="runhead" data-run="' + idx + '">' +
+      '<b>' + esc(when) + '</b>' +
+      '<span>' + done + " of " + total + " delivered" + (span ? " \u00B7 " + esc(span) : "") +
+      (e.depot ? " \u00B7 depot " + esc(e.depot) : "") + '</span></button>' +
+      '<div class="runbody">' + runStopsHtml(e) + '</div>';
+    box.appendChild(card);
+  });
+}
+
+function runStopsHtml(entry){
+  const delivered = entry.stops.filter(x => x.done && x.doneSeq != null).sort((a,b)=>a.doneSeq-b.doneSeq);
+  const rank = {};
+  delivered.forEach((x,i) => { rank[x.parcel] = i+1; });
+  return entry.stops.slice().sort((a,b) => (a.parcel||0)-(b.parcel||0)).map(x => {
+    const bits = [];
+    if (x.done){
+      bits.push("delivered" + (rank[x.parcel] ? " " + rank[x.parcel] + (rank[x.parcel]===1?"st":"") : ""));
+      if (x.doneAt) bits.push("at " + fmtTime(x.doneAt));
+    } else bits.push("not delivered");
+    if (x.pinned) bits.push("pin placed by hand");
+    return '<div class="runstop' + (x.done ? "" : " miss") + '"><i>' + (x.parcel||"?") + '</i>' +
+      '<div class="rs">' + esc(x.street||"") +
+      '<span>' + esc([x.suburb, x.postcode].filter(Boolean).join(" ")) +
+      (bits.length ? " \u00B7 " + esc(bits.join(" \u00B7 ")) : "") + '</span></div></div>';
+  }).join("");
+}
+
+function openRuns(){
+  renderRunList();
+  $("runsBack").style.display = "block";
+  $("runsSheet").style.display = "block";
+}
+function closeRuns(){ $("runsBack").style.display = "none"; $("runsSheet").style.display = "none"; }
+
+async function exportCsv(){
+  const rows = historyRows(true);
+  if (!rows.length){ flashStrip("dup","Nothing recorded to export yet"); return; }
+  const how = await shareOrDownload("delivery-runs-" + stamp() + ".csv", historyCsv(true), "text/csv");
+  if (how === "failed") flashStrip("dup","Could not create the file");
+  else if (how !== "cancelled") flashStrip("hit", rows.length + " rows exported");
+}
+
+$("btnViewRuns").addEventListener("click", openRuns);
+$("runsClose").addEventListener("click", closeRuns);
+$("runsBack").addEventListener("click", closeRuns);
+$("btnExportCsv").addEventListener("click", exportCsv);
+$("runsExport").addEventListener("click", exportCsv);
+$("runsList").addEventListener("click", e => {
+  const head = e.target && e.target.closest ? e.target.closest(".runhead") : null;
+  if (!head) return;
+  const card = head.parentNode;
+  card.classList.toggle("open");
+});
+
+$("btnBackup").addEventListener("click", async ()=>{
+  if (!historyStore.runs.length){ flashStrip("dup","No saved runs to back up yet"); return; }
+  const how = await shareOrDownload("address-scanner-backup-" + stamp() + ".json", historyBackup(), "application/json");
+  if (how === "failed") flashStrip("dup","Could not create the file");
+  else if (how !== "cancelled") flashStrip("hit","Backup of " + historyStore.runs.length + " runs created");
+});
+
+$("btnRestore").addEventListener("click", ()=> $("restoreFile").click());
+$("restoreFile").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  let text = "";
+  try{ text = await f.text(); } catch(err){ flashStrip("dup","Could not read that file"); return; }
+  const r = importBackup(text);
+  flashStrip(r.ok ? "hit" : "dup", r.message);
+  renderHistoryNote();
+  if ($("runsSheet").style.display === "block") renderRunList();
+});
+
+function renderStoreNote(){
+  const n = historyStore.runs.length;
+  $("storeNote").innerHTML = "Runs are kept on this phone only, in the browser's own storage — nothing is sent anywhere. " +
+    "That storage can be cleared by wiping the browser's site data, and phones do drop it from sites left unused. " +
+    "<b>Export or back up if you need a record you can rely on.</b>" +
+    (n ? "" : " Nothing has been saved yet.");
+}
+
+/* ==========================================================
    Edit sheet
+
 
    This is the "fix it" path and it has to actually work, because every
    failure here costs a typed address. Three things changed: it is keyed on
@@ -2480,6 +2807,7 @@ function setEdPin(lat, lng, source, recentre){
     $("edMapNote").innerHTML = "Pin placed by you. It is <b>kept</b> — the address lookup will not move it.";
     $("edUnpin").style.display = "block";
   }
+  edWhereSay();
   drawEdPin(recentre !== false);
 }
 
@@ -2504,21 +2832,49 @@ function drawEdPin(recentre){
   if (recentre) edMap.setView([edPin.lat, edPin.lng], Math.max(edMap.getZoom() || 17, 17));
 }
 
+/* One box, and the rest of the screen is map. Suburb and postcode were just
+   more typing on a phone: they come from whichever suggestion he picks, or are
+   read back out of what he types, or are simply kept from what was already on
+   the stop. */
+let edSuburbVal = "", edPostcodeVal = "", edOpenStreet = "";
+
+function edWhereSay(){
+  const el = $("edWhere");
+  const place = [edSuburbVal, edPostcodeVal].filter(Boolean).join(" ");
+  if (edPinSource === "user"){
+    el.className = "edwhere mine";
+    el.innerHTML = "Pin placed by you \u00B7 <b>kept</b>, the address lookup will not move it" +
+      (place ? " \u00B7 " + esc(place) : "");
+  } else if (edPin && edPinPrecision === "approx"){
+    el.className = "edwhere rough";
+    el.innerHTML = "<b>Rough spot</b> \u2014 the street is right but not the number. Tap the map to fix it." +
+      (place ? " \u00B7 " + esc(place) : "");
+  } else if (edPin){
+    el.className = "edwhere";
+    el.innerHTML = place ? ("Placed in <b>" + esc(place) + "</b>") : "Placed on the map";
+  } else {
+    el.className = "edwhere";
+    el.innerHTML = place ? ("<b>" + esc(place) + "</b> \u00B7 not placed yet") : "Not placed yet";
+  }
+}
+
 function openSheet(id, prefill, title){
   editingId = (id === null || id === undefined) ? null : +id;
   const src = (editingId !== null ? byId(editingId) : prefill) || {};
   $("sheetTitle").textContent = title || (editingId !== null ? "Edit stop" : "Add stop");
-  $("edStreet").value = src.street||""; $("edSuburb").value = src.suburb||""; $("edPostcode").value = src.postcode||"";
+  $("edStreet").value = src.street||"";
+  edOpenStreet = src.street||"";
+  edSuburbVal = src.suburb||"";
+  edPostcodeVal = src.postcode||"";
   $("edSug").classList.remove("on"); $("edSug").innerHTML = "";
   const hasPt = typeof src.lat === "number" && typeof src.lng === "number";
   edPin = hasPt ? { lat:src.lat, lng:src.lng } : null;
   edPinSource = hasPt ? (src.pinned ? "user" : "existing") : "";
   edPinPrecision = src.geoPrecision || "";
   $("edUnpin").style.display = src.pinned ? "block" : "none";
-  $("edMapNote").innerHTML = src.pinned
-    ? "Pin placed by you. It is <b>kept</b> — the address lookup will not move it."
-    : "Drag the pin, or tap the map, to put this stop exactly where you know it is. A pin you place by hand is <b>kept</b> and never moved by the address lookup.";
-  $("sheetBack").style.display="block"; $("sheet").style.display="block";
+  $("edMapNote").innerHTML = "Drag the pin, or tap the map, to put this stop exactly where you know it is.";
+  edWhereSay();
+  $("sheetBack").style.display="block"; $("sheet").style.display="flex";
   setTimeout(()=>{
     initEdMap();
     if (edMapReady){
@@ -2536,6 +2892,7 @@ function closeSheet(){
   $("sheetBack").style.display="none"; $("sheet").style.display="none";
   $("edSug").classList.remove("on");
   editingId=null; pendingStop=null; edPin=null; edPinSource=""; edPinPrecision="";
+  edSuburbVal=""; edPostcodeVal=""; edOpenStreet="";
 }
 $("edCancel").addEventListener("click", closeSheet);
 $("sheetBack").addEventListener("click", closeSheet);
@@ -2545,11 +2902,30 @@ $("edUnpin").addEventListener("click", ()=>{
   drawEdPin(false);
   $("edUnpin").style.display = "none";
   $("edMapNote").innerHTML = "Pin cleared. Saving will look the address up again.";
+  edWhereSay();
 });
 
+/* if he typed a full address instead of picking one, read the suburb and
+   postcode back out of it rather than making him fill in separate boxes */
+function edFields(){
+  const typed = $("edStreet").value.trim();
+  let street = typed, suburb = edSuburbVal, postcode = edPostcodeVal;
+  if (typed && typed !== edOpenStreet && edPinSource !== "suggest"){
+    let g = null;
+    try{ g = parseLoose(typed); } catch(e){}
+    if (g && g.street){
+      street = g.street;
+      if (g.suburb) suburb = g.suburb;
+      if (g.postcode) postcode = g.postcode;
+    }
+  }
+  return { street, suburb, postcode };
+}
+
 $("edSave").addEventListener("click", () => {
-  const street=$("edStreet").value.trim(), suburb=$("edSuburb").value.trim(), postcode=$("edPostcode").value.trim();
-  if (!street){ $("edStreet").focus(); return; }
+  const f = edFields();
+  if (!f.street){ $("edStreet").focus(); return; }
+  const street = f.street, suburb = f.suburb, postcode = f.postcode;
   if (editingId !== null){
     const s = byId(editingId);
     if (!s){ closeSheet(); return; }
@@ -2580,11 +2956,13 @@ $("edSave").addEventListener("click", () => {
 
 wireSuggest("edStreet", "edSug", it => {
   $("edStreet").value = it.street;
-  if (it.suburb) $("edSuburb").value = it.suburb;
-  if (it.postcode) $("edPostcode").value = it.postcode;
+  edOpenStreet = it.street;
+  if (it.suburb) edSuburbVal = it.suburb;
+  if (it.postcode) edPostcodeVal = it.postcode;
   edPinPrecision = it.exact ? "exact" : "approx";
   initEdMap();
   setEdPin(it.lat, it.lng, "suggest", true);
+  edWhereSay();
 });
 
 $("revNext").addEventListener("click", closeReveal);
@@ -2648,6 +3026,7 @@ $("histSave").addEventListener("click", () => {
   closeHistSheet();
   wipe(pendingReset);
   renderHistoryNote();
+  renderStoreNote();
   flashStrip(got ? "hit" : "dup",
     got ? "Run saved — " + historyStore.runs.length + " saved in total" : "Nothing with a map position to save");
 });
@@ -2700,7 +3079,11 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
+  makeResizer, edFields, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
+  historyCsv, historyRows, historyBackup, importBackup, rebuildAdjacency, currentRunEntry,
+  csvCell, fmtDateTime, fmtDate, fmtTime, runRows, openRuns, closeRuns, renderRunList,
+  CSV_COLUMNS,
+  get runStartedAt(){ return runStartedAt; }, set runStartedAt(v){ runStartedAt = v; },
   get fitDepot(){ return fitDepot; }, set fitDepot(v){ fitDepot = v; },
   get APP_VERSION(){ return APP_VERSION; },
   get adding(){ return adding; },
@@ -2718,6 +3101,7 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
 load();
 loadHistoryStore();
 renderHistoryNote();
+renderStoreNote();
 try{ showLabels = localStorage.getItem("addressScannerWithMaps.labels") !== "0"; } catch(e){}
 try{ fitDepot = localStorage.getItem("addressScannerWithMaps.fitDepot") === "1"; } catch(e){}
 $("btnLabels").classList.toggle("on", showLabels);
@@ -2727,7 +3111,7 @@ $("btnFitDepot").classList.toggle("on", fitDepot);
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-01.4";
+const APP_VERSION = "2026-08-01.5";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
