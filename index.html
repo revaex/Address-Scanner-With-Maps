@@ -121,7 +121,8 @@
   body.mapfull .maptools{position:fixed;z-index:1100;left:8px;right:8px;top:calc(8px + env(safe-area-inset-top));margin:0}
   body.mapfull #map{height:100vh;border-radius:0;border:none}
   body.mapfull .dock{display:none}
-  .maptools{display:flex;gap:8px;margin-bottom:8px}
+  .maptools{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .maptools .mini{flex:1 1 0;min-width:74px;padding:8px 6px;font-size:12.5px}
   .maptools .mini{flex:1;text-align:center}
   .maptools .mini.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
   .stoplabel{
@@ -132,6 +133,10 @@
   .stoplabel:before{display:none}
   .stoplabel b{color:var(--amber)}
   .stoplabel.done{opacity:.55}
+  .grabber{display:flex;align-items:center;justify-content:center;height:22px;cursor:ns-resize;touch-action:none}
+  .grabber i{display:block;width:52px;height:5px;border-radius:3px;background:var(--line)}
+  .grabber:active i{background:var(--amber)}
+  body.mapfull .grabber{display:none}
   #placeBar{display:none;position:sticky;top:0;z-index:900;background:var(--amber);color:var(--amber-ink);
     border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;font-size:13.5px;font-weight:700;line-height:1.35}
   body.placing #placeBar,body.adding #placeBar{display:block}
@@ -169,19 +174,19 @@
   #reveal{position:fixed;inset:0;z-index:1300;background:rgba(6,9,14,.82);display:none;align-items:flex-end}
   #reveal.on{display:flex}
   .rev-card{width:100%;max-width:600px;margin:0 auto;background:var(--panel);border-top:2px solid var(--green);
-    border-radius:18px 18px 0 0;padding:16px 14px calc(18px + env(safe-area-inset-bottom));
-    max-height:94vh;overflow:auto;animation:rise .18s ease-out}
+    border-radius:18px 18px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+    height:94vh;max-height:94vh;overflow:auto;display:flex;flex-direction:column;animation:rise .18s ease-out}
   @keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
   @media (prefers-reduced-motion:reduce){.rev-card{animation:none}}
   .rev-tag{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green);margin-bottom:6px}
   .rev-tag.twin{color:var(--blue)}
-  .rev-street{font-size:25px;font-weight:800;line-height:1.15}
+  .rev-street{font-size:23px;font-weight:800;line-height:1.15}
   .rev-sub{font-size:13px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
-  #revMap{height:220px;border-radius:12px;margin-top:12px;border:1px solid var(--line);background:var(--panel-2)}
+  #revMap{height:48vh;min-height:240px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);flex:none}
   .rev-near{font-size:13.5px;color:var(--ink);margin-top:11px;border-left:2px solid var(--green);padding-left:10px;line-height:1.55}
   .rev-near b{color:var(--green)}
   .rev-near .far{color:var(--blue)}
-  .rev-btns{display:flex;gap:8px;margin-top:14px}
+  .rev-btns{display:flex;gap:8px;margin-top:auto;padding-top:12px}
   .rev-btns .btn{flex:1;width:auto}
 
   /* Optimise */
@@ -219,6 +224,9 @@
   #banner .txt b{color:var(--amber)}
   #banner button{padding:8px 12px;font-size:13px;border-radius:9px;background:transparent;color:var(--ink-dim);border:1px solid var(--line)}
   .footer{text-align:center;padding:4px 0 10px}
+  .verline{margin-top:8px;font-size:11.5px;color:var(--ink-dim);letter-spacing:.04em}
+  .verline b{color:var(--ink)}
+  .verline button{padding:5px 10px;font-size:11px;margin-left:6px}
   .footer button{background:transparent;color:var(--ink-dim);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600}
   .saveflag{font-size:12px;color:var(--ink-dim);text-align:center;margin-bottom:8px}
   .dock-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
@@ -280,22 +288,23 @@
     <input type="file" id="fileInput" accept="image/*">
   </div>
 
+  <div class="btn-row" id="ocrRow" style="margin-bottom:12px;display:none">
+    <button class="btn btn-ghost" id="btnReadText">Read the address instead</button>
+  </div>
+  <div class="note" id="ocrNote" style="display:none;margin:-6px 0 12px"></div>
+
   <div class="panel" id="manualPanel" style="display:none">
     <h2>Add a stop</h2>
-    <label for="pasteRaw">Paste QR text</label>
-    <textarea id="pasteRaw" placeholder="Paste the raw label data here..."></textarea>
-    <button class="btn btn-ghost" style="margin-top:8px" id="btnParsePaste">Read pasted label</button>
-    <label for="manSearch">Or search for the address</label>
+    <label for="manStreet">Address</label>
     <div class="sugbox">
-      <input type="text" id="manSearch" placeholder="Start typing: 1194 Glen Huntly Rd" autocomplete="off">
+      <input type="text" id="manStreet" placeholder="11/20 Toorak Ave" autocomplete="off">
       <ul class="suglist" id="manSug"></ul>
     </div>
-    <label for="manStreet">Street</label>
-    <input type="text" id="manStreet" placeholder="278 Bambra Rd" autocomplete="off">
-    <label for="manSuburb">Suburb</label>
-    <input type="text" id="manSuburb" placeholder="Caulfield South" autocomplete="off">
-    <label for="manPostcode">Postcode</label>
-    <input type="text" id="manPostcode" placeholder="3162" inputmode="numeric" autocomplete="off">
+    <div class="note" id="manNote">Type it any way you like — unit numbers, no suburb, short forms. Pick a match and it drops straight onto the map.</div>
+    <label for="manSuburb">Suburb <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+    <input type="text" id="manSuburb" placeholder="Croydon" autocomplete="off">
+    <label for="manPostcode">Postcode <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+    <input type="text" id="manPostcode" placeholder="3136" inputmode="numeric" autocomplete="off">
     <button class="btn btn-amber" style="margin-top:12px" id="btnManAdd">Add stop</button>
   </div>
 
@@ -316,9 +325,11 @@
       <button class="mini edit" id="btnMe">On me</button>
       <button class="mini edit" id="btnAll">Fit all</button>
       <button class="mini edit" id="btnLabels">Labels</button>
+      <button class="mini edit" id="btnFitDepot">+ Depot</button>
       <button class="mini edit" id="btnAddHere">Add stop</button>
       <button class="mini edit" id="btnBig">Expand</button>
     </div>
+    <div class="grabber" id="mapGrab"><i></i></div>
     <div id="map"></div>
   </div>
 
@@ -337,7 +348,10 @@
 
   <div class="panel">
     <h2>Depot (route ends here)</h2>
-    <input type="text" id="depot" placeholder="e.g. 44 Depot Rd, Sunshine West 3020" autocomplete="off">
+    <div class="sugbox">
+      <input type="text" id="depot" placeholder="e.g. 44 Depot Rd, Sunshine West" autocomplete="off">
+      <ul class="suglist" id="depotSug"></ul>
+    </div>
     <div class="note" id="depotNote">The run starts from wherever you are and finishes back here.</div>
   </div>
 
@@ -382,7 +396,10 @@
     <div class="note">Google Maps takes about 10 stops per trip, so long runs split into legs. Each leg starts from wherever you are and the last one ends at the depot.</div>
   </div>
   <div class="saveflag" id="saveFlag"></div>
-  <div class="footer"><button id="btnResetAll">Reset everything</button></div>
+  <div class="footer">
+    <button id="btnResetAll">Reset everything</button>
+    <div class="verline">Version <b id="verStamp"></b> <button id="btnHardRefresh">Load the latest</button></div>
+  </div>
 </div>
 
 <div class="dock">
@@ -397,6 +414,7 @@
     <div class="rev-tag" id="revTag">Scanned</div>
     <div class="rev-street" id="revStreet">—</div>
     <div class="rev-sub" id="revSub"></div>
+    <div class="grabber" id="revGrab"><i></i></div>
     <div id="revMap"></div>
     <div class="rev-near" id="revNear"></div>
     <div class="rev-btns">
@@ -410,13 +428,11 @@
 <div id="sheet">
   <div class="sheet-scroll">
     <h3 id="sheetTitle">Check this stop</h3>
-    <label for="edSearch">Search for the address</label>
+    <label for="edStreet">Address</label>
     <div class="sugbox">
-      <input type="text" id="edSearch" placeholder="Start typing and pick a match" autocomplete="off">
+      <input type="text" id="edStreet" placeholder="11/20 Toorak Ave" autocomplete="off">
       <ul class="suglist" id="edSug"></ul>
     </div>
-    <label for="edStreet">Street</label>
-    <input type="text" id="edStreet" autocomplete="off">
     <label for="edSuburb">Suburb</label>
     <input type="text" id="edSuburb" autocomplete="off">
     <label for="edPostcode">Postcode</label>
@@ -1043,6 +1059,8 @@ async function startScanner(){
     scanning = true;
     $("scanStrip").classList.add("live");
     $("scanMsg").textContent = "Scanning — fill the box with the QR code";
+    $("ocrRow").style.display = "flex";
+    ocrSay("If the QR will not read, point at the printed address and tap Read the address instead.");
     offerTorch();
   } catch(err){ handleCamError(err); }
 }
@@ -1052,6 +1070,8 @@ function stopScanner(){
   scanning = false; torchOn = false;
   $("reader").style.display = "none";
   $("btnTorch").style.display = "none";
+  $("ocrRow").style.display = "none";
+  $("ocrNote").style.display = "none";
   $("btnScan").textContent = "Start scanning";
   $("scanStrip").classList.remove("live");
   $("scanMsg").textContent = "Camera off";
@@ -1134,9 +1154,14 @@ $("fileInput").addEventListener("change", async e => {
   $("reader").style.display = "block";
   flashStrip(null, "Reading that photo...");
   const text = await decodePhoto(f);
-  if (text) onScan(text);
-  else flashStrip("dup","No QR code found in that photo — try filling the frame with just the code");
-  $("reader").style.display = "none"; $("reader").innerHTML = ""; e.target.value = "";
+  $("reader").style.display = "none"; $("reader").innerHTML = "";
+  if (text){ onScan(text); }
+  else {
+    flashStrip("dup","No QR code in that photo — reading the address off it instead");
+    $("ocrRow").style.display = "flex";
+    await readAddressNow(f);
+  }
+  e.target.value = "";
 });
 
 /* ================= Stops ================= */
@@ -1193,15 +1218,36 @@ function normStreetName(s){
     .trim();
 }
 
+/* A sub-dwelling prefix is noise to a geocoder but it is the whole point to
+   the driver, so it gets split off for the lookup and put back on the answer.
+   Covers the shapes people actually type: "11/20", "U11/20", "unit 11/20",
+   "Unit 11 20", "Apt 5, 12", "2 33". */
+const UNIT_PATTERNS = [
+  new RegExp("^(?:"+UNIT_WORDS+")\\s*[.:#]?\\s*[0-9]{1,4}[A-Za-z]?\\s*[\\/,]?\\s*(?=[0-9])","i"),
+  /^[A-Za-z]{0,2}[0-9]{1,4}[A-Za-z]?\s*\/\s*(?=[0-9])/,
+  /^[0-9]{1,4}[A-Za-z]?\s+(?=[0-9]{1,5}[A-Za-z]?\s+[A-Za-z])/
+];
+
+function unitSplit(street){
+  let s = String(street||"").trim().replace(/\s{2,}/g," ");
+  for (let i=0;i<UNIT_PATTERNS.length;i++){
+    const m = UNIT_PATTERNS[i].exec(s);
+    if (m && m[0].trim()){
+      return { unit: m[0].trim(), rest: s.slice(m[0].length).trim().replace(/\s{2,}/g," ") };
+    }
+  }
+  return { unit:"", rest:s };
+}
+
+function joinUnit(unit, street){
+  if (!unit) return String(street||"");
+  if (!street) return unit;
+  return /\/$/.test(unit) ? unit + street : unit + " " + street;
+}
+
 /* the sub-dwelling part is noise to a geocoder: strip it for lookups only,
    never from what the driver sees on the stop */
-function stripUnit(street){
-  let s = String(street||"").trim();
-  s = s.replace(new RegExp("^(?:"+UNIT_WORDS+")\\s*[.:#]?\\s*[0-9]{1,4}[A-Za-z]?[,\\s]+(?=\\d)","i"), "");
-  s = s.replace(/^[0-9]{1,4}[A-Za-z]?\s*\/\s*(?=\d)/, "");
-  s = s.replace(/^[0-9]{1,4}[A-Za-z]?\s+(?=[0-9]{1,5}[A-Za-z]?\s+[A-Za-z])/, "");
-  return s.replace(/\s{2,}/g," ").trim();
-}
+function stripUnit(street){ return unitSplit(street).rest; }
 
 function houseNumber(street){
   const m = /^\s*([0-9]+[A-Za-z]?)(?:\s*-\s*([0-9]+[A-Za-z]?))?/.exec(stripUnit(street));
@@ -1386,22 +1432,38 @@ function hitToStop(h){
   };
 }
 
+/* He should be able to type it however it comes out of his head. The unit
+   prefix is the one thing geocoders reliably choke on, so that gets stripped
+   for the lookup and stitched back on afterwards. Everything else — missing
+   suburb, missing state, missing postcode, "ave" for "avenue" — the geocoder
+   handles on its own, and the location bias keeps it local. */
+function suggestQuery(text){
+  const raw = String(text||"").trim().replace(/\s{2,}/g," ");
+  const split = unitSplit(raw);
+  const q = split.rest || raw;
+  return { q: q + (/\baustralia\b/i.test(q) ? "" : ", Australia"), unit: split.unit };
+}
+
 async function suggestAddresses(text){
-  const q = String(text||"").trim();
-  if (q.length < 4) return [];
+  const raw = String(text||"").trim();
+  if (raw.length < 4) return [];
+  const built = suggestQuery(raw);
   let hits = [];
-  try{ hits = await askPhoton(q + (/\baustralia\b/i.test(q) ? "" : ", Australia"), 6, biasPoint()); }
+  try{ hits = await askPhoton(built.q, 8, biasPoint()); }
   catch(e){ return []; }
   const seen = {}, out = [];
   hits.forEach(h => {
     const s = hitToStop(h);
     if (!s.street) return;
+    /* put the unit back, but only on a result that is a real street address —
+       "Unit 11 Croydon" would be nonsense */
+    if (built.unit && s.exact) s.street = joinUnit(built.unit, s.street);
     const k = (s.street + "|" + s.suburb).toUpperCase();
     if (seen[k]) return;
     seen[k] = 1;
     out.push(s);
   });
-  return out.slice(0, 5);
+  return out.slice(0, 6);
 }
 
 function renderSuggestions(listEl, items, onPick){
@@ -1542,13 +1604,13 @@ function drawReveal(){
 
   /* once he pans or zooms this map it is his — only take the view back when
      the stop being revealed first lands on the map */
-  const key = revStop.id + "|" + (revStop.lat === null ? "-" : "x") + "|" + pts.length;
+  const key = revStop.id + "|" + (revStop.lat === null ? "-" : "x");
   if (revStop.lat !== null && !revUserMoved && key !== revFitKey){
+    /* the question this map answers is "where does THIS parcel go", so it
+       opens right on top of the stop rather than framing the whole run */
     revProg++;
-    try{
-      if (pts.length > 1) revMap.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom:16 });
-      else revMap.setView([revStop.lat,revStop.lng], 16);
-    } finally { setTimeout(()=>{ revProg = Math.max(0, revProg-1); }, 400); }
+    try{ revMap.setView([revStop.lat,revStop.lng], 17); }
+    finally { setTimeout(()=>{ revProg = Math.max(0, revProg-1); }, 400); }
   }
   revFitKey = key;
 }
@@ -1668,7 +1730,7 @@ function render(){
    map. Any pan or pinch latches mapUserMoved and the map is left alone.
    ========================================================== */
 let mapUserMoved = false, mapProg = 0, fittedOnce = false, lastFitKey = "";
-let showLabels = true, placing = null, adding = false, addBusy = false;
+let showLabels = true, placing = null, adding = false, addBusy = false, fitDepot = false;
 
 function progMap(fn){
   mapProg++;
@@ -1697,13 +1759,26 @@ function stopTip(s, n){
   return '<b>' + n + '</b> ' + esc(s.street || "(no street)");
 }
 
+/* When he is loading the van he only cares about the parcels, so the default
+   fit is the tightest view that still holds every stop — the depot and his own
+   position used to drag the frame right out and he had to zoom in every time.
+   The + Depot button widens it to include the depot when he wants that. */
+function fitPoints(){
+  const pts = displayList().filter(s => s.lat !== null).map(s => [s.lat,s.lng]);
+  if (fitDepot && depotPt) pts.push([depotPt.lat,depotPt.lng]);
+  return pts;
+}
+
 function fitAll(force){
   if (!mapReady) return;
-  const pts = displayList().filter(s => s.lat !== null).map(s => [s.lat,s.lng]);
-  if (depotPt) pts.push([depotPt.lat,depotPt.lng]);
-  if (me) pts.push([me.lat,me.lng]);
-  if (!pts.length) return;
-  progMap(()=> map.fitBounds(L.latLngBounds(pts).pad(0.18), { maxZoom:15 }));
+  const pts = fitPoints();
+  if (!pts.length){
+    if (depotPt) progMap(()=> map.setView([depotPt.lat,depotPt.lng], 15));
+    else if (me) progMap(()=> map.setView([me.lat,me.lng], 16));
+    return;
+  }
+  if (pts.length === 1) progMap(()=> map.setView(pts[0], 17));
+  else progMap(()=> map.fitBounds(L.latLngBounds(pts).pad(0.06), { maxZoom:18 }));
   if (force) mapUserMoved = false;
   fittedOnce = true;
 }
@@ -1744,7 +1819,7 @@ function drawMap(){
 
   /* only take the view when the set of pins actually changed and he has not
      started looking around for himself */
-  const key = list.map(s => s.id).join(",") + "|" + (depotPt?"d":"");
+  const key = list.map(s => s.id).join(",") + "|" + (fitDepot && depotPt ? "d" : "");
   if (!fittedOnce || (key !== lastFitKey && !mapUserMoved)) fitAll(false);
   lastFitKey = key;
 }
@@ -1927,6 +2002,45 @@ $("btnLabels").addEventListener("click", ()=>{
   try{ localStorage.setItem("addressScannerWithMaps.labels", showLabels ? "1" : "0"); } catch(e){}
   drawMap(); drawReveal();
 });
+/* ---- drag the bar above a map to resize it, remembered between runs ---- */
+function makeResizer(grabId, targetId, storeKey, minPx, onDone){
+  const grab = $(grabId), target = $(targetId);
+  if (!grab || !target) return;
+  try{
+    const saved = parseInt(localStorage.getItem(storeKey), 10);
+    if (saved && saved >= minPx) target.style.height = saved + "px";
+  } catch(e){}
+  let startY = 0, startH = 0, dragging = false;
+  const maxPx = () => Math.max(minPx, window.innerHeight - 90);
+  grab.addEventListener("pointerdown", e => {
+    dragging = true; startY = e.clientY; startH = target.offsetHeight || minPx;
+    if (grab.setPointerCapture) grab.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  grab.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    const h = Math.min(maxPx(), Math.max(minPx, startH + (e.clientY - startY)));
+    target.style.height = h + "px";
+    if (onDone) onDone();
+  });
+  const stop = () => {
+    if (!dragging) return;
+    dragging = false;
+    try{ localStorage.setItem(storeKey, String(target.offsetHeight)); } catch(e){}
+    if (onDone) onDone();
+  };
+  grab.addEventListener("pointerup", stop);
+  grab.addEventListener("pointercancel", stop);
+}
+
+$("btnFitDepot").addEventListener("click", ()=>{
+  fitDepot = !fitDepot;
+  $("btnFitDepot").classList.toggle("on", fitDepot);
+  try{ localStorage.setItem("addressScannerWithMaps.fitDepot", fitDepot ? "1" : "0"); } catch(e){}
+  initMap(); setFollow(false); fitAll(true);
+  flashStrip("hit", fitDepot ? "Fitting the stops and the depot" : "Fitting the stops only");
+});
+
 $("btnBig").addEventListener("click", ()=>{
   const full = document.body.classList.toggle("mapfull");
   $("btnBig").textContent = full ? "Shrink" : "Expand";
@@ -2194,6 +2308,149 @@ $("btnRoute").addEventListener("click", async () => {
 });
 
 /* ==========================================================
+   Reading the address off the label with the camera
+
+   When the QR will not read, this is the fallback: point at the label, tap,
+   and the printed address is read as text. Tesseract runs entirely on the
+   phone — no key, no account, nothing sent anywhere — and it is only fetched
+   the first time he asks for it, so it costs nothing on startup.
+
+   OCR is materially less reliable than a QR code, so nothing is ever added
+   straight from it. The result always lands in the edit sheet for him to
+   confirm, with the address search sitting right there if it came out wrong.
+   ========================================================== */
+let ocrLib = null, ocrBusy = false;
+
+function loadOcr(){
+  if (ocrLib) return Promise.resolve(ocrLib);
+  if (window.Tesseract){ ocrLib = window.Tesseract; return Promise.resolve(ocrLib); }
+  return new Promise((resolve, reject) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    sc.onload = () => { ocrLib = window.Tesseract; ocrLib ? resolve(ocrLib) : reject(new Error("tesseract")); };
+    sc.onerror = () => reject(new Error("tesseract"));
+    document.head.appendChild(sc);
+  });
+}
+
+/* the camera confuses these constantly: letters where digits belong and the
+   other way round. Rather than guess, generate the sensible swaps and let the
+   address parser tell us which version actually makes sense. */
+const OCR_TO_DIGIT = { O:"0", o:"0", Q:"0", D:"0", I:"1", l:"1", "|":"1", Z:"2", S:"5", s:"5", B:"8", G:"6", T:"7" };
+const OCR_TO_LETTER = { "0":"O", "1":"I", "5":"S", "8":"B" };
+
+function ocrFixNumbers(line){
+  // inside a run that is mostly digits, letters are almost certainly digits
+  return String(line||"").replace(/[0-9OoQDIl|ZSsBGT]{2,}/g, run => {
+    const digits = (run.match(/[0-9]/g)||[]).length;
+    if (digits === 0 || digits < run.length / 2) return run;
+    return run.split("").map(c => (/[0-9]/.test(c) ? c : (OCR_TO_DIGIT[c] || c))).join("");
+  });
+}
+
+// a digit sitting inside a word is almost certainly a letter: "M0onya"
+function ocrFixLetters(text){
+  return String(text||"").replace(/\b([A-Za-z]+)([0-9])([A-Za-z]+)\b/g, (m,a,d,b) => {
+    const rep = OCR_TO_LETTER[d];
+    if (!rep) return m;
+    const lower = /[a-z]$/.test(a) || /^[a-z]/.test(b);
+    return a + (lower ? rep.toLowerCase() : rep) + b;
+  });
+}
+
+function ocrNumberPass(text){
+  return String(text||"").split("\n").map(ocrFixNumbers).join("\n");
+}
+
+/* least corrected first: on a tie the more corrected reading wins, because a
+   correction only ever fires where the raw text was ambiguous anyway */
+function ocrCandidates(text){
+  const raw = String(text||"").replace(/[\u2018\u2019\u201C\u201D]/g, "'");
+  const lettered = ocrFixLetters(raw);
+  const out = [];
+  [raw, ocrNumberPass(raw), lettered, ocrNumberPass(lettered)].forEach(c => {
+    if (out.indexOf(c) === -1) out.push(c);
+  });
+  return out;
+}
+
+/* try each correction and keep the one that yields the most complete address */
+function parseOcrText(text){
+  let best = null, bestScore = -1;
+  ocrCandidates(text).forEach(candidate => {
+    let p = null;
+    try{ p = parseLabel(candidate); } catch(e){}
+    if (!p) return;
+    let score = 0;
+    if (p.street) score += 4;
+    if (/^\s*(?:[0-9]|(?:UNIT|U|APT|FLAT|SHOP|LOT)\b)/i.test(p.street||"")) score += 3;
+    if (p.suburb) score += 2;
+    if (p.postcode) score += 2;
+    if (score >= bestScore){ bestScore = score; best = p; }
+  });
+  return bestScore >= 4 ? best : null;
+}
+
+function ocrSay(msg, bad){
+  const el = $("ocrNote");
+  el.style.display = "block";
+  el.innerHTML = bad ? '<span style="color:var(--red)">' + esc(msg) + "</span>" : esc(msg);
+}
+
+/* grab whatever the camera is currently showing */
+function frameFromCamera(){
+  const video = $("reader").querySelector("video");
+  if (!video || !video.videoWidth) return null;
+  const scale = Math.min(1, 1400 / video.videoWidth);
+  const c = document.createElement("canvas");
+  c.width = Math.round(video.videoWidth * scale);
+  c.height = Math.round(video.videoHeight * scale);
+  c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+  return c;
+}
+
+async function readTextFrom(source){
+  const lib = await loadOcr();
+  const res = await lib.recognize(source, "eng");
+  return (res && res.data && res.data.text) || "";
+}
+
+async function readAddressNow(source){
+  if (ocrBusy) return;
+  ocrBusy = true;
+  $("btnReadText").disabled = true;
+  ocrSay("Reading the label...");
+  let text = "";
+  try{ text = await readTextFrom(source); }
+  catch(e){
+    ocrSay("Could not load the text reader. Check signal and try again.", true);
+    ocrBusy = false; $("btnReadText").disabled = false; return;
+  }
+  const p = parseOcrText(text);
+  ocrBusy = false; $("btnReadText").disabled = false;
+  if (!p || !p.street){
+    ocrSay("No address in that. Get closer, fill the frame with the address block, and hold still.", true);
+    flashStrip("dup", "No address read");
+    return;
+  }
+  if (sameParcel(p)){ ocrSay("That one is already on the run."); flashStrip("dup","Already scanned"); return; }
+  ocrSay("Read: " + p.street + ". Check it before adding.");
+  flashStrip("hit", "Read: " + p.street);
+  /* never added straight from OCR — he confirms first */
+  pendingStop = p;
+  openSheet(null, p, "Check what was read");
+}
+
+$("btnReadText").addEventListener("click", async ()=>{
+  const frame = frameFromCamera();
+  if (!frame){
+    ocrSay("Start the camera first, or use the photo option above.", true);
+    return;
+  }
+  readAddressNow(frame);
+});
+
+/* ==========================================================
    Edit sheet
 
    This is the "fix it" path and it has to actually work, because every
@@ -2252,7 +2509,7 @@ function openSheet(id, prefill, title){
   const src = (editingId !== null ? byId(editingId) : prefill) || {};
   $("sheetTitle").textContent = title || (editingId !== null ? "Edit stop" : "Add stop");
   $("edStreet").value = src.street||""; $("edSuburb").value = src.suburb||""; $("edPostcode").value = src.postcode||"";
-  $("edSearch").value = ""; $("edSug").classList.remove("on"); $("edSug").innerHTML = "";
+  $("edSug").classList.remove("on"); $("edSug").innerHTML = "";
   const hasPt = typeof src.lat === "number" && typeof src.lng === "number";
   edPin = hasPt ? { lat:src.lat, lng:src.lng } : null;
   edPinSource = hasPt ? (src.pinned ? "user" : "existing") : "";
@@ -2321,9 +2578,10 @@ $("edSave").addEventListener("click", () => {
   }
 });
 
-wireSuggest("edSearch", "edSug", it => {
-  $("edStreet").value = it.street; $("edSuburb").value = it.suburb; $("edPostcode").value = it.postcode;
-  $("edSearch").value = "";
+wireSuggest("edStreet", "edSug", it => {
+  $("edStreet").value = it.street;
+  if (it.suburb) $("edSuburb").value = it.suburb;
+  if (it.postcode) $("edPostcode").value = it.postcode;
   edPinPrecision = it.exact ? "exact" : "approx";
   initEdMap();
   setEdPin(it.lat, it.lng, "suggest", true);
@@ -2342,20 +2600,16 @@ $("btnManual").addEventListener("click", ()=>{
   const p = $("manualPanel");
   p.style.display = p.style.display === "none" ? "block" : "none";
 });
-$("btnParsePaste").addEventListener("click", ()=>{
-  const p = parseLabel($("pasteRaw").value);
-  if (!p){ flashStrip("dup","No address in that text"); return; }
-  $("manStreet").value=p.street||""; $("manSuburb").value=p.suburb||""; $("manPostcode").value=p.postcode||"";
-  manPick = null;
-  pendingStop = p;
-  flashStrip("hit","Read: " + (p.street || p.suburb));
-});
-wireSuggest("manSearch", "manSug", it => {
-  $("manStreet").value = it.street; $("manSuburb").value = it.suburb; $("manPostcode").value = it.postcode;
-  $("manSearch").value = "";
+wireSuggest("manStreet", "manSug", it => {
+  $("manStreet").value = it.street;
+  if (it.suburb) $("manSuburb").value = it.suburb;
+  if (it.postcode) $("manPostcode").value = it.postcode;
   manPick = it;                       // already geocoded, so no lookup needed on add
-  flashStrip("hit", "Picked: " + it.street);
+  $("manNote").textContent = it.exact
+    ? "Picked " + it.street + ". It will drop straight onto the map."
+    : "Picked " + it.street + " — that is the street, not the number. Check the pin after adding.";
 });
+
 $("btnManAdd").addEventListener("click", ()=>{
   const street = $("manStreet").value.trim();
   if (!street){ $("manStreet").focus(); return; }
@@ -2370,7 +2624,8 @@ $("btnManAdd").addEventListener("click", ()=>{
   if (sameParcel(p)){ flashStrip("dup","Already on the run"); return; }
   const s = addStop(p);
   $("manStreet").value=""; $("manSuburb").value=""; $("manPostcode").value="";
-  $("manSearch").value=""; $("pasteRaw").value=""; $("manSug").classList.remove("on");
+  $("manSug").classList.remove("on");
+  $("manNote").textContent = "Type it any way you like — unit numbers, no suburb, short forms. Pick a match and it drops straight onto the map.";
   pendingStop = null; manPick = null;
   flashStrip("hit","Parcel "+s.parcel+": "+s.street);
   openReveal(s);
@@ -2404,14 +2659,37 @@ $("btnScan").addEventListener("click", startScanner);
 $("btnClear").addEventListener("click", () => offerNewRun(false));
 $("btnResetAll").addEventListener("click", () => offerNewRun(true));
 $("bannerFresh").addEventListener("click", () => offerNewRun(false));
+/* the depot deserves the same treatment as any other address: pick it out of a
+   list and get told plainly whether it landed */
+function depotFound(d, addr){
+  if (d){
+    $("depotNote").innerHTML = "Depot placed at <b>" + esc(addr) +
+      "</b>. The run starts from wherever you are and finishes back here.";
+  } else if (addr){
+    $("depotNote").textContent = "Could not place that one. Type a bit more of it and pick from the list, or add the suburb.";
+  } else {
+    $("depotNote").textContent = "The run starts from wherever you are and finishes back here.";
+  }
+}
+
+wireSuggest("depot", "depotSug", it => {
+  const addr = [it.street, it.suburb, it.postcode].filter(Boolean).join(", ");
+  $("depot").value = addr;
+  depotPt = { lat:it.lat, lng:it.lng, addr };
+  depotFound(depotPt, addr);
+  flashStrip("hit", "Depot set: " + it.street);
+  save(); render();
+});
+
 $("depot").addEventListener("change", async ()=>{
+  const addr = $("depot").value.trim();
+  if (depotPt && depotPt.addr === addr){ depotFound(depotPt, addr); return; }
   depotPt = null;
+  if (!addr){ depotFound(null, ""); render(); return; }
   $("depotNote").textContent = "Finding the depot...";
   const d = await ensureDepot();
-  $("depotNote").textContent = d
-    ? "Depot found. The run starts from wherever you are and finishes back here."
-    : ($("depot").value.trim() ? "Could not find that address. Try adding the postcode." :
-       "The run starts from wherever you are and finishes back here.");
+  depotFound(d, addr);
+  if (d) flashStrip("hit", "Depot set: " + addr);
   render();
 });
 
@@ -2421,7 +2699,10 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   photonHits, nominatimHits, photonUrl, hitToStop, normStreetName, stopTip, scanConfig, scannerOptions,
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
-  startAdding, stopAdding, addStopAt, reverseLookup,
+  startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
+  makeResizer, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
+  get fitDepot(){ return fitDepot; }, set fitDepot(v){ fitDepot = v; },
+  get APP_VERSION(){ return APP_VERSION; },
   get adding(){ return adding; },
   get stops(){ return stops; }, set stops(v){ stops = v; },
   get optOrder(){ return optOrder; }, set optOrder(v){ optOrder = v; },
@@ -2438,7 +2719,23 @@ load();
 loadHistoryStore();
 renderHistoryNote();
 try{ showLabels = localStorage.getItem("addressScannerWithMaps.labels") !== "0"; } catch(e){}
+try{ fitDepot = localStorage.getItem("addressScannerWithMaps.fitDepot") === "1"; } catch(e){}
 $("btnLabels").classList.toggle("on", showLabels);
+$("btnFitDepot").classList.toggle("on", fitDepot);
+
+/* ---- which build is actually loaded ----
+   Pages caches the html, so after pushing an update it is easy to sit there
+   testing the old one. The stamp says which build this is, and the button
+   reloads past the cache. */
+const APP_VERSION = "2026-08-01.4";
+$("verStamp").textContent = APP_VERSION;
+$("btnHardRefresh").addEventListener("click", ()=>{
+  const base = location.href.split("?")[0].split("#")[0];
+  location.replace(base + "?v=" + Date.now());
+});
+
+makeResizer("mapGrab", "map", "addressScannerWithMaps.mapH", 240, ()=>{ if (map) map.invalidateSize(); });
+makeResizer("revGrab", "revMap", "addressScannerWithMaps.revMapH", 200, ()=>{ if (revMap) revMap.invalidateSize(); });
 $("useHistory").addEventListener("change", save);
 render();
 startWatch();
