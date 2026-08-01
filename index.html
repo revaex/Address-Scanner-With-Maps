@@ -101,6 +101,7 @@
   .stop .who{color:var(--ink-dim);font-size:13px;margin-top:2px}
   .stop .flag{font-size:12px;font-weight:700;margin-top:3px}
   .flag.warn{color:var(--red)} .flag.wait{color:var(--ink-dim)} .flag.twin{color:var(--blue)}
+  .flag.rough{color:var(--amber)} .flag.pinned{color:var(--green)}
   .stop .acts{display:flex;flex-direction:column;gap:5px;flex:none}
   .mini{padding:7px 11px;font-size:13px;border-radius:9px}
   .mini.go{background:var(--amber);color:var(--amber-ink)}
@@ -112,9 +113,29 @@
 
   /* Map */
   #mapWrap{display:none;margin-bottom:12px}
-  #map{height:60vh;min-height:340px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel)}
+  #map{height:calc(100vh - 300px);min-height:400px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel)}
+  body.mapfull{padding-bottom:0}
+  body.mapfull .wrap{max-width:none;padding:0}
+  body.mapfull > .wrap > *:not(#mapWrap){display:none !important}
+  body.mapfull #mapWrap{margin:0;display:block !important}
+  body.mapfull .maptools{position:fixed;z-index:1100;left:8px;right:8px;top:calc(8px + env(safe-area-inset-top));margin:0}
+  body.mapfull #map{height:100vh;border-radius:0;border:none}
+  body.mapfull .dock{display:none}
   .maptools{display:flex;gap:8px;margin-bottom:8px}
   .maptools .mini{flex:1;text-align:center}
+  .maptools .mini.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+  .stoplabel{
+    background:rgba(20,24,31,.86);border:1px solid var(--line);color:var(--ink);
+    font-size:11.5px;font-weight:700;padding:2px 6px;border-radius:7px;white-space:nowrap;
+    box-shadow:0 1px 4px rgba(0,0,0,.5);
+  }
+  .stoplabel:before{display:none}
+  .stoplabel b{color:var(--amber)}
+  .stoplabel.done{opacity:.55}
+  #placeBar{display:none;position:sticky;top:0;z-index:900;background:var(--amber);color:var(--amber-ink);
+    border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;font-size:13.5px;font-weight:700;line-height:1.35}
+  body.placing #placeBar{display:block}
+  body.placing #map{outline:2px solid var(--amber);outline-offset:-2px}
   .pin{
     width:30px;height:30px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);
     background:var(--amber);border:2px solid #14181f;
@@ -201,9 +222,26 @@
   .dock .btn{flex:1;padding:15px}
 
   #sheetBack{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:1200}
-  #sheet{position:fixed;left:0;right:0;bottom:0;z-index:1201;display:none;background:var(--panel);border-top:2px solid var(--amber);border-radius:18px 18px 0 0;padding:18px 16px 26px;max-width:600px;margin:0 auto}
+  /* top-anchored and scrollable so the on-screen keyboard can never bury the
+     Save button, which is why fixing an address used to fail so often */
+  #sheet{position:fixed;left:0;right:0;top:0;bottom:0;z-index:1201;display:none;background:var(--panel);
+    border-top:2px solid var(--amber);padding:0;max-width:600px;margin:0 auto;overflow:hidden}
+  #sheet .sheet-scroll{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:calc(16px + env(safe-area-inset-top)) 16px 108px}
   #sheet h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:4px}
-  #sheet .btn-row{margin-top:14px}
+  #sheet .btn-row{position:fixed;left:0;right:0;bottom:0;max-width:600px;margin:0 auto;
+    background:var(--panel);border-top:1px solid var(--line);padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
+  .sugbox{position:relative}
+  .suglist{list-style:none;margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:none}
+  .suglist.on{display:block}
+  .suglist li{padding:11px 12px;font-size:14.5px;background:var(--panel-2);border-bottom:1px solid var(--line);cursor:pointer}
+  .suglist li:last-child{border-bottom:none}
+  .suglist li b{display:block;font-weight:700}
+  .suglist li span{color:var(--ink-dim);font-size:12.5px}
+  .suglist li.hint{color:var(--ink-dim);font-size:13px;cursor:default}
+  #edMap{height:210px;border-radius:12px;margin-top:8px;border:1px solid var(--line);background:var(--panel-2)}
+  .edmapnote{font-size:12.5px;color:var(--ink-dim);margin-top:6px;line-height:1.45}
+  .edmapnote b{color:var(--amber)}
 
   .modalBack{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:1200}
   .modal{position:fixed;left:0;right:0;bottom:0;z-index:1201;display:none;background:var(--panel);border-top:2px solid var(--amber);border-radius:18px 18px 0 0;padding:18px 16px 26px;max-width:600px;margin:0 auto}
@@ -217,7 +255,7 @@
     <div class="brand">Address <em>Scanner</em> With Maps</div>
     <div class="headright">
       <div class="gps" id="gpsChip"><i></i><span id="gpsTxt">GPS off</span></div>
-      <div class="count-chip"><b id="stopCount">0</b> to go</div>
+      <div class="count-chip"><b id="stopCount">0</b> to go<span id="fixChip" style="display:none;color:var(--red)"> · <b id="fixCount" style="color:var(--red)">0</b> to fix</span></div>
     </div>
   </header>
 
@@ -228,6 +266,7 @@
 
   <div class="btn-row" style="margin-bottom:12px">
     <button class="btn btn-amber" id="btnScan">Start scanning</button>
+    <button class="btn btn-ghost" id="btnTorch" style="display:none;flex:0 0 92px">Light</button>
     <button class="btn btn-ghost" id="btnManual">Add by hand</button>
   </div>
 
@@ -243,7 +282,12 @@
     <label for="pasteRaw">Paste QR text</label>
     <textarea id="pasteRaw" placeholder="Paste the raw label data here..."></textarea>
     <button class="btn btn-ghost" style="margin-top:8px" id="btnParsePaste">Read pasted label</button>
-    <label for="manStreet">Or type it — street</label>
+    <label for="manSearch">Or search for the address</label>
+    <div class="sugbox">
+      <input type="text" id="manSearch" placeholder="Start typing: 1194 Glen Huntly Rd" autocomplete="off">
+      <ul class="suglist" id="manSug"></ul>
+    </div>
+    <label for="manStreet">Street</label>
     <input type="text" id="manStreet" placeholder="278 Bambra Rd" autocomplete="off">
     <label for="manSuburb">Suburb</label>
     <input type="text" id="manSuburb" placeholder="Caulfield South" autocomplete="off">
@@ -264,14 +308,20 @@
   </div>
 
   <div id="mapWrap">
+    <div id="placeBar">Tap the map where this stop really is. Drag the pin to nudge it.</div>
     <div class="maptools">
-      <button class="mini edit" id="btnMe">Centre on me</button>
-      <button class="mini edit" id="btnAll">Fit all stops</button>
+      <button class="mini edit" id="btnMe">On me</button>
+      <button class="mini edit" id="btnAll">Fit all</button>
+      <button class="mini edit" id="btnLabels">Labels</button>
+      <button class="mini edit" id="btnBig">Expand</button>
     </div>
     <div id="map"></div>
   </div>
 
   <div id="listWrap">
+    <div id="fixBar" style="display:none;margin-bottom:8px">
+      <button class="btn btn-ghost" id="btnDropFailed"></button>
+    </div>
     <ul id="stopList"></ul>
     <div class="empty" id="emptyMsg">No stops yet. Scan a label or add one by hand — each one drops a pin as you go.</div>
   </div>
@@ -354,13 +404,24 @@
 
 <div id="sheetBack"></div>
 <div id="sheet">
-  <h3 id="sheetTitle">Check this stop</h3>
-  <label for="edStreet">Street</label>
-  <input type="text" id="edStreet" autocomplete="off">
-  <label for="edSuburb">Suburb</label>
-  <input type="text" id="edSuburb" autocomplete="off">
-  <label for="edPostcode">Postcode</label>
-  <input type="text" id="edPostcode" inputmode="numeric" autocomplete="off">
+  <div class="sheet-scroll">
+    <h3 id="sheetTitle">Check this stop</h3>
+    <label for="edSearch">Search for the address</label>
+    <div class="sugbox">
+      <input type="text" id="edSearch" placeholder="Start typing and pick a match" autocomplete="off">
+      <ul class="suglist" id="edSug"></ul>
+    </div>
+    <label for="edStreet">Street</label>
+    <input type="text" id="edStreet" autocomplete="off">
+    <label for="edSuburb">Suburb</label>
+    <input type="text" id="edSuburb" autocomplete="off">
+    <label for="edPostcode">Postcode</label>
+    <input type="text" id="edPostcode" inputmode="numeric" autocomplete="off">
+    <label>Where the pin sits</label>
+    <div id="edMap"></div>
+    <div class="edmapnote" id="edMapNote">Drag the pin, or tap the map, to put this stop exactly where you know it is. A pin you place by hand is <b>kept</b> and never moved by the address lookup.</div>
+    <button class="btn btn-ghost" style="margin-top:10px" id="edUnpin">Undo my pin, look the address up again</button>
+  </div>
   <div class="btn-row">
     <button class="btn btn-amber" id="edSave">Save stop</button>
     <button class="btn btn-ghost" id="edCancel">Discard</button>
@@ -387,9 +448,9 @@ let view = "scan";       // scan | opt
 let tab = "list";        // list | map
 let mode = "crow";
 let depotPt = null;
-let scanner = null, scanning = false;
+let scanner = null, scanning = false, torchOn = false;
 let lastScanText = "", lastScanAt = 0;
-let editingIndex = null, pendingStop = null;
+let editingId = null, pendingStop = null, manPick = null;
 let nextId = 1;
 let map = null, markerLayer = null, meLayer = null, mapReady = false;
 let me = null;           // {lat,lng,acc}
@@ -532,6 +593,8 @@ function showSaveFlag(){
 
 function wipe(all){
   stops = []; optOrder = null; view = "scan"; nextId = 1; sortDone = {};
+  mapUserMoved = false; fittedOnce = false; lastFitKey = ""; placing = null;
+  document.body.classList.remove("placing");
   $("routePanel").style.display = "none";
   $("loadPanel").style.display = "none";
   $("sortPanel").style.display = "none";
@@ -601,6 +664,47 @@ function cleanStreet(street, suburb, postcode){
   return out.replace(/\s{2,}/g," ").trim();
 }
 
+/* Two 40-character address lines sit side by side in the payload. Join
+   them, drop the padding commas the label printer leaves behind. */
+function joinAddrLines(l1, l2){
+  return [l1, l2].map(x => String(x||"").replace(/\s+/g," ").replace(/^[,\s]+|[,\s]+$/g,"").trim())
+    .filter(x => x && !/^[,\s]+$/.test(x))
+    .join(", ").replace(/\s*,\s*,+/g,",").replace(/^[,\s]+|[,\s]+$/g,"");
+}
+
+/* Everything from the unit/depot marker onward is fixed width *relative to
+   the marker*, which holds even when a long business name has pushed the
+   marker to the right:
+       +0   unit type      3   "SAT", "CTN", or three spaces
+       +3   depot code     3   "MLG"
+       +6   address       81   a leading space, then two 40-char lines
+       +87  phone         14   may be blank or bracketed, e.g. "(04) 2579 4882"
+       +101 flags          2   "NN", "NT" ...
+       +103 trailing refs      often absent entirely
+   Confirmed against five real decoded labels. If the block does not line up
+   (a very long address can overflow its field) fall back to trimming the
+   junk off the right hand end instead. */
+function splitStarTrackTail(after){
+  if (after.length >= 103){
+    const flags = after.substr(101,2);
+    const addr = joinAddrLines(after.substr(7,40), after.substr(47,40));
+    if (/^[A-Z]{2}$/.test(flags) && addr){
+      return { addr, phone: after.substr(87,14).trim(), flags, fixed:true };
+    }
+  }
+  let s = after.slice(6);
+  s = s.replace(/\s{2,}[A-Za-z0-9]{6,}\s*$/, "");          // trailing reference block
+  let flags = "";
+  const fm = /(?:^|[^A-Za-z])(N[A-Z])\s*$/.exec(s);
+  if (fm && fm.index > 8){ flags = fm[1]; s = s.slice(0, s.length - fm[1].length); }
+  let phone = "";
+  const pm = /(?:\+?\d|\()[\d ()+-]{6,15}\s*$/.exec(s);
+  if (pm && pm.index > 8){ phone = pm[0].trim(); s = s.slice(0, pm.index); }
+  const half = Math.max(40, Math.ceil(s.length/2));
+  const addr = s.length > 41 ? joinAddrLines(s.slice(0,41), s.slice(41)) : joinAddrLines(s, "");
+  return { addr: addr || joinAddrLines(s.slice(0,half), s.slice(half)), phone, flags, fixed:false };
+}
+
 function parseStarTrack(text){
   const head = /^([A-Za-z][A-Za-z'’.\- ]*?)\s{2,}(\d{4})(?=[A-Z0-9])/.exec(text);
   if (!head) return null;
@@ -617,18 +721,21 @@ function parseStarTrack(text){
   if (dateIdx < 0) return null;
 
   const tail = text.slice(dateIdx + 8);
-  const mre = new RegExp("("+UNIT_CODES.join("|")+")([A-Z]{3})\\s", "g");
+  /* the unit code is often blank, so match any three uppercase letters or
+     three spaces, then score the candidates rather than trusting the first */
+  const mre = /([A-Z]{3}|\s{3})([A-Z]{3})(?=\s)/g;
   let mm, best = null;
   while ((mm = mre.exec(tail)) !== null){
     if (mm.index < 38) continue;                       // name field is 40 wide
-    const after = tail.slice(mm.index + mm[0].length);
+    const after = tail.slice(mm.index + 6);
     let score = 0;
     if (mm.index === 40 || mm.index === 80) score += 3;
     if (looksLikeStreetStart(after)) score += 4;
-    if (mm[1].trim()) score += 1;
+    if (UNIT_CODES.indexOf(mm[1]) > -1) score += 2;
     if (!best || score > best.score) best = { at:mm.index, m:mm, score };
+    mre.lastIndex = mm.index + 1;                      // allow overlapping candidates
   }
-  if (!best || best.score < 4) return null;
+  if (!best || best.score < 5) return null;
 
   const unitType = best.m[1].trim(), depotCode = best.m[2];
   const nameBlock = tail.slice(0, best.at);
@@ -644,29 +751,26 @@ function parseStarTrack(text){
     if (!receiver && company){ receiver = company; company = ""; }
   }
 
-  let rest = tail.slice(best.at + best.m[0].length);
-  const fm = /\s+N[A-Z](?=\s|$)/.exec(rest);
-  if (fm && fm.index > 8) rest = rest.slice(0, fm.index);
-
-  let phone = "";
-  const ph = /\s(\+?\d[\d ]{7,14})\s*$/.exec(rest);
-  if (ph){ phone = ph[1].replace(/\s+/g,""); rest = rest.slice(0, ph.index); }
-
-  const street = cleanStreet(rest, suburb, postcode);
-  if (!street) return null;
+  const cut = splitStarTrackTail(tail.slice(best.at));
+  const street = cleanStreet(cut.addr, suburb, postcode);
+  if (!street || !/[A-Za-z]/.test(street)) return null;
 
   return { ok:true, format:"startrack", street:titleCase(street), suburb:titleCase(suburb),
     postcode, receiver:titleCase(receiver), company:titleCase(company),
-    phone, con:connote, article, unitType, depot:depotCode };
+    phone:cut.phone.replace(/\s+/g," ").trim(), con:connote, article, unitType, depot:depotCode };
 }
 
+/* keys are tried in the order given, so a payload carrying both "address"
+   and an ambiguous "to" field uses the address rather than the name */
 function pickTag(obj, keys){
-  for (const k of Object.keys(obj)){
-    const flat = k.toLowerCase().replace(/[^a-z0-9]/g,"");
-    if (keys.indexOf(flat) > -1){
-      const v = obj[k];
-      if (v != null && String(v).trim()) return String(v).trim();
-    }
+  const flat = {};
+  Object.keys(obj).forEach(k => {
+    const f = k.toLowerCase().replace(/[^a-z0-9]/g,"");
+    if (!(f in flat)) flat[f] = obj[k];
+  });
+  for (const want of keys){
+    const v = flat[want];
+    if (v != null && String(v).trim()) return String(v).trim();
   }
   return "";
 }
@@ -849,6 +953,52 @@ function handleCamError(err){
   }
 }
 
+/* These labels carry 290-334 characters, which is a dense QR (around
+   version 14). The old settings cropped the frame to a 240px box at
+   whatever resolution the browser felt like handing over, and a code that
+   dense simply does not survive that. So: ask for the highest sensible
+   resolution, keep autofocus running, scan a much larger slice of the
+   frame, and hand off to the phone's own barcode engine where there is one
+   (Android Chrome), which reads these far better than the JS decoder. */
+function scanBox(w, h){
+  const side = Math.floor(Math.min(w, h) * 0.82);
+  return { width: side, height: side };
+}
+
+function scanConfig(){
+  return {
+    fps: 12,
+    qrbox: scanBox,
+    disableFlip: true,
+    videoConstraints: {
+      facingMode: { ideal: "environment" },
+      width: { min: 640, ideal: 1920 },
+      height: { min: 480, ideal: 1080 },
+      frameRate: { ideal: 15 },
+      advanced: [{ focusMode: "continuous" }]
+    }
+  };
+}
+
+/* the phone's own barcode engine reads these dense codes far better than the
+   JS decoder, so ask for it explicitly and only look for QR codes */
+function scannerOptions(){
+  const opts = { verbose:false, useBarCodeDetectorIfSupported:true };
+  const F = window.Html5QrcodeSupportedFormats;
+  if (F && F.QR_CODE !== undefined) opts.formatsToSupport = [F.QR_CODE];
+  return opts;
+}
+
+async function offerTorch(){
+  $("btnTorch").style.display = "none";
+  torchOn = false;
+  $("btnTorch").textContent = "Light";
+  try{
+    const caps = scanner.getRunningTrackCapabilities();
+    if (caps && "torch" in caps) $("btnTorch").style.display = "block";
+  } catch(e){}
+}
+
 async function startScanner(){
   if (scanning){ stopScanner(); return; }
   if (!window.isSecureContext){
@@ -875,21 +1025,101 @@ async function startScanner(){
   $("reader").style.display = "block";
   $("btnScan").textContent = "Stop camera";
   try{
-    scanner = new Html5Qrcode("reader");
-    await scanner.start({ facingMode:"environment" }, { fps:10, qrbox:{width:240,height:240} }, onScan, ()=>{});
+    scanner = new Html5Qrcode("reader", scannerOptions());
+    try{
+      await scanner.start({ facingMode:"environment" }, scanConfig(), onScan, ()=>{});
+    } catch(strict){
+      /* some cameras reject the high resolution request outright, and a
+         camera that will not start is worse than a lower resolution one */
+      await scanner.start({ facingMode:"environment" },
+        { fps:10, qrbox:scanBox, videoConstraints:{ facingMode:{ ideal:"environment" } } },
+        onScan, ()=>{});
+    }
     scanning = true;
     $("scanStrip").classList.add("live");
-    $("scanMsg").textContent = "Scanning — point at the QR code";
+    $("scanMsg").textContent = "Scanning — fill the box with the QR code";
+    offerTorch();
   } catch(err){ handleCamError(err); }
 }
 
 function stopScanner(){
   if (scanner){ scanner.stop().catch(()=>{}); scanner = null; }
-  scanning = false;
+  scanning = false; torchOn = false;
   $("reader").style.display = "none";
+  $("btnTorch").style.display = "none";
   $("btnScan").textContent = "Start scanning";
   $("scanStrip").classList.remove("live");
   $("scanMsg").textContent = "Camera off";
+}
+
+$("btnTorch").addEventListener("click", async ()=>{
+  if (!scanner) return;
+  torchOn = !torchOn;
+  try{
+    await scanner.applyVideoConstraints({ advanced:[{ torch: torchOn }] });
+    $("btnTorch").textContent = torchOn ? "Light on" : "Light";
+  } catch(e){
+    torchOn = false;
+    flashStrip("dup","This camera has no light");
+    $("btnTorch").style.display = "none";
+  }
+});
+
+/* ---- reading a photo of the label ----
+   One attempt at one size was throwing away readable codes. Try the phone's
+   own barcode engine on the full-size image first, then the JS decoder, then
+   the JS decoder again on rescaled copies — a dense code often reads at one
+   scale and not another. */
+async function nativeDecodeFile(file){
+  if (!("BarcodeDetector" in window)) return null;
+  try{
+    const det = new window.BarcodeDetector({ formats:["qr_code"] });
+    const bmp = await createImageBitmap(file);
+    const found = await det.detect(bmp);
+    if (bmp.close) bmp.close();
+    if (found && found.length && found[0].rawValue) return found[0].rawValue;
+  } catch(e){}
+  return null;
+}
+
+function rescaleFile(file, maxSide){
+  return new Promise(resolve => {
+    let settled = false;
+    const done = v => { if (!settled){ settled = true; resolve(v); } };
+    setTimeout(()=> done(null), 4000);           // never let a bad photo hang the scan
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => done(b ? new File([b], "label.png", { type:"image/png" }) : null), "image/png");
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); done(null); };
+    img.src = url;
+  });
+}
+
+async function decodePhoto(file){
+  const native = await nativeDecodeFile(file);
+  if (native) return native;
+  const tries = [file];
+  for (const side of [2000, 1400, 900]){
+    const scaled = await rescaleFile(file, side);
+    if (scaled) tries.push(scaled);
+  }
+  for (const candidate of tries){
+    const fs = new Html5Qrcode("reader", scannerOptions());
+    try{
+      const text = await fs.scanFile(candidate, false);
+      if (text){ try{ await fs.clear(); } catch(e){} return text; }
+    } catch(err){}
+    try{ await fs.clear(); } catch(e){}
+  }
+  return null;
 }
 
 $("fileInput").addEventListener("change", async e => {
@@ -897,12 +1127,10 @@ $("fileInput").addEventListener("change", async e => {
   if (!f) return;
   stopScanner();
   $("reader").style.display = "block";
-  try{
-    const fs = new Html5Qrcode("reader");
-    const text = await fs.scanFile(f, false);
-    onScan(text);
-    await fs.clear();
-  } catch(err){ flashStrip("dup","No QR code found in that photo"); }
+  flashStrip(null, "Reading that photo...");
+  const text = await decodePhoto(f);
+  if (text) onScan(text);
+  else flashStrip("dup","No QR code found in that photo — try filling the frame with just the code");
   $("reader").style.display = "none"; $("reader").innerHTML = ""; e.target.value = "";
 });
 
@@ -912,12 +1140,22 @@ function stopLabel(s){ return [s.street,s.suburb,s.postcode].filter(Boolean).joi
 
 function addStop(p){
   const twin = twinCount(tidy(p.street), tidy(p.suburb)) > 0;
+  /* parcel number is the physical position in the van, so it must keep
+     climbing even after a bad scan is deleted — stops.length would reuse
+     a number that is already sitting on a box */
+  const nextParcel = stops.reduce((m,x) => Math.max(m, x.parcel||0), 0) + 1;
+  const hasPt = typeof p.lat === "number" && typeof p.lng === "number";
   const s = {
-    id: nextId++, parcel: stops.length + 1,
+    id: nextId++, parcel: nextParcel,
     street: tidy(p.street), suburb: tidy(p.suburb), postcode: p.postcode||"",
     receiver: p.receiver||"", company: p.company||"", phone: p.phone||"",
     con: p.con||"", article: p.article||"", unitType: p.unitType||"",
-    twin, lat:null, lng:null, geoState:"queued", done:false
+    twin,
+    lat: hasPt ? p.lat : null, lng: hasPt ? p.lng : null,
+    geoState: hasPt ? "ok" : "queued",
+    geoPrecision: hasPt ? (p.precision || "approx") : "",
+    pinned: !!p.pinned,
+    done:false
   };
   stops.push(s);
   optOrder = null; view = "scan"; sortDone = {};
@@ -926,45 +1164,196 @@ function addStop(p){
   return s;
 }
 
-/* ================= Geocoding (free, runs in the background) ================= */
+/* ==========================================================
+   Geocoding (free, keyless, runs in the background)
+
+   Two things went wrong before. Deliveries are full of sub-dwellings
+   ("Unit 3 68 Grange Rd", "23/41 Murrumbeena Rd") and geocoders choke on
+   the unit part, and a single result was taken on trust even when it was
+   the wrong side of a suburb boundary. So now: several query shapes are
+   tried in order, several candidates come back for each, and they get
+   scored against the house number, street, suburb and postcode we already
+   know. Anything that cannot be matched on the house number is marked
+   approximate so the driver knows to check the pin rather than trust it.
+   ========================================================== */
 let geoRunning = false;
 
-async function photon(q){
-  const url = "https://photon.komoot.io/api/?limit=1&bbox=112.9,-43.7,153.7,-9.1&q=" + encodeURIComponent(q);
-  const r = await fetch(url);
-  if (!r.ok) throw new Error("photon");
-  const d = await r.json();
-  if (d.features && d.features.length){
-    const c = d.features[0].geometry.coordinates;
-    return { lat:c[1], lng:c[0] };
-  }
-  return null;
+function normTxt(s){ return String(s||"").toUpperCase().replace(/[^A-Z0-9]+/g," ").trim(); }
+/* compare street names only: drop any leading house number and the type
+   word, so "1194 Glen Huntly Rd" and "Glen Huntly Road" are the same street */
+function normStreetName(s){
+  return normTxt(s)
+    .replace(/^[0-9]+[A-Z]?(?:\s*-\s*[0-9]+[A-Z]?)?\s+/, "")
+    .replace(new RegExp("\\s+(?:"+STREET_TYPES+")$","i"),"")
+    .trim();
 }
-async function nominatim(q){
-  const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=au&q=" + encodeURIComponent(q);
+
+/* the sub-dwelling part is noise to a geocoder: strip it for lookups only,
+   never from what the driver sees on the stop */
+function stripUnit(street){
+  let s = String(street||"").trim();
+  s = s.replace(new RegExp("^(?:"+UNIT_WORDS+")\\s*[.:#]?\\s*[0-9]{1,4}[A-Za-z]?[,\\s]+(?=\\d)","i"), "");
+  s = s.replace(/^[0-9]{1,4}[A-Za-z]?\s*\/\s*(?=\d)/, "");
+  s = s.replace(/^[0-9]{1,4}[A-Za-z]?\s+(?=[0-9]{1,5}[A-Za-z]?\s+[A-Za-z])/, "");
+  return s.replace(/\s{2,}/g," ").trim();
+}
+
+function houseNumber(street){
+  const m = /^\s*([0-9]+[A-Za-z]?)(?:\s*-\s*([0-9]+[A-Za-z]?))?/.exec(stripUnit(street));
+  return m ? m[1] : "";
+}
+
+/* the same address written a few different ways, best guess first */
+function geoQueries(s){
+  const tailBits = [s.suburb, s.postcode ? ("VIC " + s.postcode) : "VIC"].filter(Boolean).join(" ");
+  const tail = (tailBits ? ", " + tailBits : "") + ", Australia";
+  const out = [];
+  const push = (street, precise) => {
+    const q = String(street||"").trim();
+    if (q && !out.some(o => o.q === q + tail)) out.push({ q: q + tail, street:q, precise: precise !== false });
+  };
+  const bare = stripUnit(s.street);
+  push(bare);
+  push(s.street);
+  const range = /^\s*([0-9]+[A-Za-z]?)\s*-\s*[0-9]+[A-Za-z]?\s+(.+)$/.exec(bare);
+  if (range) push(range[1] + " " + range[2]);
+  const noNum = bare.replace(/^\s*[0-9]+[A-Za-z]?(?:\s*-\s*[0-9]+[A-Za-z]?)?\s+/, "");
+  if (noNum && noNum !== bare) push(noNum, false);
+  return out;
+}
+
+function scoreGeoHit(hit, want, bias){
+  let score = 0, exact = false;
+  const hn = normTxt(hit.housenumber), wn = normTxt(want.number);
+  if (wn && hn){
+    /* "71-73 Moonya Rd" normalises to "71 73", and the geocoder will only
+       know about number 71, so match on the first number of a range */
+    if (hn === wn){ score += 6; exact = true; }
+    else if (hn.split(" ")[0] === wn.split(" ")[0]){ score += 4; exact = true; }
+    else score -= 3;
+  } else if (wn && !hn){ score -= 1; }
+  if (want.postcode && hit.postcode){ score += (normTxt(hit.postcode) === normTxt(want.postcode)) ? 3 : -3; }
+  if (want.suburb && hit.suburb){ score += (normTxt(hit.suburb) === normTxt(want.suburb)) ? 3 : -1; }
+  if (want.street && hit.street){
+    score += (normStreetName(hit.street) === normStreetName(want.street)) ? 4 : -4;
+  }
+  if (bias && typeof hit.lat === "number"){
+    const d = haversine(bias, hit);
+    if (d < 2) score += 2;
+    else if (d < 12) score += 1;
+    else if (d > 60) score -= 8;
+  }
+  return { score, exact };
+}
+
+function pickGeoHit(hits, want, bias){
+  let best = null;
+  (hits||[]).forEach(h => {
+    if (typeof h.lat !== "number" || typeof h.lng !== "number") return;
+    const r = scoreGeoHit(h, want, bias);
+    if (!best || r.score > best.score){
+      best = { lat:h.lat, lng:h.lng, score:r.score, precision: r.exact ? "exact" : "approx", hit:h };
+    }
+  });
+  if (!best || best.score < 0) return null;
+  return best;
+}
+
+function biasPoint(){
+  if (me) return me;
+  if (depotPt) return depotPt;
+  const placed = stops.find(s => s.lat !== null);
+  return placed ? { lat:placed.lat, lng:placed.lng } : null;
+}
+
+function photonUrl(q, limit, bias){
+  let url = "https://photon.komoot.io/api/?limit=" + limit + "&lang=en&bbox=112.9,-43.7,153.7,-9.1&q=" + encodeURIComponent(q);
+  if (bias) url += "&lat=" + bias.lat.toFixed(5) + "&lon=" + bias.lng.toFixed(5);
+  return url;
+}
+
+function photonHits(d){
+  if (!d || !Array.isArray(d.features)) return [];
+  return d.features.map(f => {
+    const p = f.properties || {}, c = (f.geometry && f.geometry.coordinates) || [];
+    return { lat:c[1], lng:c[0], housenumber:p.housenumber||"", street:p.street||p.name||"",
+      suburb:p.district||p.city||p.locality||"", postcode:p.postcode||"", type:p.type||"",
+      name:p.name||"", city:p.city||"" };
+  }).filter(h => typeof h.lat === "number");
+}
+
+function nominatimHits(d){
+  if (!Array.isArray(d)) return [];
+  return d.map(r => {
+    const a = r.address || {};
+    return { lat:+r.lat, lng:+r.lon, housenumber:a.house_number||"", street:a.road||"",
+      suburb:a.suburb||a.city_district||a.town||a.city||"", postcode:a.postcode||"",
+      type:r.type||"", name:r.name||"", city:a.city||"" };
+  }).filter(h => !isNaN(h.lat) && !isNaN(h.lng));
+}
+
+async function askPhoton(q, limit, bias){
+  const r = await fetch(photonUrl(q, limit, bias));
+  if (!r.ok) throw new Error("photon");
+  return photonHits(await r.json());
+}
+async function askNominatim(q){
+  const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=au&q=" + encodeURIComponent(q);
   const r = await fetch(url);
   if (!r.ok) throw new Error("nominatim");
-  const d = await r.json();
-  return (d && d.length) ? { lat:+d[0].lat, lng:+d[0].lon } : null;
+  return nominatimHits(await r.json());
+}
+
+/* try each shape of the address until one lands on the house number */
+async function locateStop(s){
+  const bias = biasPoint();
+  const want = { number: houseNumber(s.street), suburb: s.suburb, postcode: s.postcode, street: stripUnit(s.street) };
+  let best = null;
+  const queries = geoQueries(s);
+  for (let i = 0; i < queries.length; i++){
+    const qy = queries[i];
+    let hits = [];
+    try{ hits = await askPhoton(qy.q, 5, bias); } catch(e){}
+    if (!hits.length){
+      await sleep(400);
+      try{ hits = await askNominatim(qy.q); } catch(e){}
+    }
+    const pick = pickGeoHit(hits, qy.precise ? want : { suburb:want.suburb, postcode:want.postcode, street:want.street }, bias);
+    if (pick){
+      if (!qy.precise) pick.precision = "approx";
+      if (!best || pick.score > best.score) best = pick;
+      if (pick.precision === "exact") return pick;
+    }
+    if (i < queries.length - 1) await sleep(350);
+  }
+  return best;
 }
 
 async function locate(q){
-  try{ const h = await photon(q); if (h) return h; } catch(e){}
-  await sleep(400);
-  try{ const h = await nominatim(q); if (h) return h; } catch(e){}
-  return null;
+  const bias = biasPoint();
+  let hits = [];
+  try{ hits = await askPhoton(q, 3, bias); } catch(e){}
+  if (!hits.length){
+    await sleep(400);
+    try{ hits = await askNominatim(q); } catch(e){}
+  }
+  return hits.length ? { lat:hits[0].lat, lng:hits[0].lng } : null;
 }
 
 async function runGeoQueue(){
   if (geoRunning) return;
   geoRunning = true;
   while (true){
-    const s = stops.find(x => x.geoState === "queued" && !x.done);
+    const s = stops.find(x => x.geoState === "queued" && !x.done && !x.pinned);
     if (!s) break;
     s.geoState = "working"; updateGeoStatus();
-    const hit = await locate(stopLabel(s) + ", Australia");
-    if (hit){ s.lat = hit.lat; s.lng = hit.lng; s.geoState = "ok"; }
-    else { s.geoState = "failed"; }
+    const hit = await locateStop(s);
+    if (hit){
+      s.lat = hit.lat; s.lng = hit.lng; s.geoState = "ok";
+      s.geoPrecision = hit.precision;
+    } else {
+      s.geoState = "failed"; s.geoPrecision = "";
+    }
     render();
     drawReveal();
     await sleep(350);
@@ -978,6 +1367,70 @@ function updateGeoStatus(){
   $("geoStatus").textContent = waiting ? ("placing " + waiting + " on map...") : "";
 }
 
+/* ================= Address suggestions (Photon, same free endpoint) ============ */
+let sugTimer = null, sugSeq = 0;
+
+function hitToStop(h){
+  const street = [h.housenumber, h.street || h.name].filter(Boolean).join(" ").trim();
+  return {
+    street: titleCase(street || h.name || ""),
+    suburb: titleCase(h.suburb || h.city || ""),
+    postcode: h.postcode || "",
+    lat: h.lat, lng: h.lng,
+    exact: !!h.housenumber
+  };
+}
+
+async function suggestAddresses(text){
+  const q = String(text||"").trim();
+  if (q.length < 4) return [];
+  let hits = [];
+  try{ hits = await askPhoton(q + (/\baustralia\b/i.test(q) ? "" : ", Australia"), 6, biasPoint()); }
+  catch(e){ return []; }
+  const seen = {}, out = [];
+  hits.forEach(h => {
+    const s = hitToStop(h);
+    if (!s.street) return;
+    const k = (s.street + "|" + s.suburb).toUpperCase();
+    if (seen[k]) return;
+    seen[k] = 1;
+    out.push(s);
+  });
+  return out.slice(0, 5);
+}
+
+function renderSuggestions(listEl, items, onPick){
+  listEl.innerHTML = "";
+  if (!items.length){ listEl.classList.remove("on"); return; }
+  items.forEach((it, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = '<b>' + esc(it.street) + '</b><span>' +
+      esc([it.suburb, it.postcode].filter(Boolean).join(" ")) +
+      (it.exact ? "" : " \u00B7 street only, check the pin") + '</span>';
+    li.addEventListener("click", () => { listEl.classList.remove("on"); onPick(it); });
+    listEl.appendChild(li);
+  });
+  listEl.classList.add("on");
+}
+
+function wireSuggest(inputId, listId, onPick){
+  const input = $(inputId), list = $(listId);
+  input.addEventListener("input", () => {
+    const val = input.value;
+    clearTimeout(sugTimer);
+    if (val.trim().length < 4){ list.classList.remove("on"); return; }
+    list.innerHTML = '<li class="hint">Looking...</li>';
+    list.classList.add("on");
+    const seq = ++sugSeq;
+    sugTimer = setTimeout(async () => {
+      const items = await suggestAddresses(val);
+      if (seq !== sugSeq) return;
+      if (!items.length){ list.innerHTML = '<li class="hint">No match — type it in below instead.</li>'; list.classList.add("on"); return; }
+      renderSuggestions(list, items, onPick);
+    }, 350);
+  });
+}
+
 /* ================= Where am I ================= */
 let watchId = null;
 
@@ -989,6 +1442,9 @@ function startWatch(){
       $("gpsChip").classList.add("on");
       $("gpsTxt").textContent = "\u00B1" + Math.round(me.acc) + "m";
       drawMe();
+      if (followMe && mapReady && tab === "map"){
+        progMap(()=> map.setView([me.lat,me.lng], Math.max(map.getZoom()||16, 16)));
+      }
       drawReveal();
     },
     err => {
@@ -1012,9 +1468,11 @@ function fmtDist(km){
 
 /* ================= Reveal: where this parcel goes ================= */
 let revMap = null, revLayer = null, revStop = null;
+let revUserMoved = false, revProg = 0, revFitKey = "", revLayerKey = "";
 
 function openReveal(s){
   revStop = s;
+  revUserMoved = false; revFitKey = ""; revLayerKey = "";
   const n = twinCount(s.street, s.suburb);
   $("revTag").textContent = n > 1 ? ("Scanned \u00B7 parcel " + n + " for this address") : ("Scanned \u00B7 parcel " + s.parcel);
   $("revTag").className = "rev-tag" + (n > 1 ? " twin" : "");
@@ -1023,10 +1481,12 @@ function openReveal(s){
   $("reveal").classList.add("on");
   setTimeout(()=>{
     if (!revMap && window.L){
-      revMap = L.map("revMap", { zoomControl:false, attributionControl:false });
+      revMap = L.map("revMap", { zoomControl:true, attributionControl:false });
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:"&copy; OpenStreetMap" }).addTo(revMap);
       revLayer = L.layerGroup().addTo(revMap);
       revMap.setView([-37.8836,145.0553], 13);
+      revMap.on("dragstart", () => { revUserMoved = true; });
+      revMap.on("zoomstart", () => { if (!revProg) revUserMoved = true; });
     }
     if (revMap) revMap.invalidateSize();
     drawReveal();
@@ -1035,10 +1495,21 @@ function openReveal(s){
 
 function closeReveal(){ $("reveal").classList.remove("on"); revStop = null; }
 
+function revealKey(){
+  return stops.filter(s => !s.done && s.lat !== null)
+      .map(s => s.id + ":" + s.lat.toFixed(5) + "," + s.lng.toFixed(5)).join(";") +
+    "|" + (revStop ? revStop.id : "") +
+    "|" + (me ? me.lat.toFixed(4) + "," + me.lng.toFixed(4) : "") +
+    "|" + (depotPt ? "d" : "") + "|" + (showLabels ? "L" : "");
+}
+
 function drawReveal(){
   if (!revStop || !$("reveal").classList.contains("on")) return;
   $("revNear").innerHTML = nearestBlurb(revStop);
   if (!revMap || !revLayer) return;
+  const drawKey = revealKey();
+  if (drawKey === revLayerKey) return;
+  revLayerKey = drawKey;
   revLayer.clearLayers();
   const pts = [];
 
@@ -1047,7 +1518,11 @@ function drawReveal(){
     const fresh = s.id === revStop.id;
     const icon = L.divIcon({ className:"", iconSize:fresh?[38,38]:[30,30], iconAnchor:fresh?[19,36]:[15,28],
       html:'<div class="pin '+(fresh?"fresh":"dim")+'"><span>'+(fresh?"\u25CF":s.parcel)+'</span></div>' });
-    L.marker([s.lat,s.lng], { icon }).addTo(revLayer);
+    const m = L.marker([s.lat,s.lng], { icon }).addTo(revLayer);
+    if (showLabels){
+      m.bindTooltip(stopTip(s, s.parcel), { permanent:true, direction:"right",
+        offset:fresh?[16,-14]:[12,-12], className:"stoplabel", opacity:1 });
+    }
     pts.push([s.lat,s.lng]);
   });
   if (me){
@@ -1060,10 +1535,17 @@ function drawReveal(){
       html:'<div class="pin depot"><span>D</span></div>' }) }).addTo(revLayer);
   }
 
-  if (revStop.lat !== null){
-    if (pts.length > 1) revMap.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom:16 });
-    else revMap.setView([revStop.lat,revStop.lng], 16);
+  /* once he pans or zooms this map it is his — only take the view back when
+     the stop being revealed first lands on the map */
+  const key = revStop.id + "|" + (revStop.lat === null ? "-" : "x") + "|" + pts.length;
+  if (revStop.lat !== null && !revUserMoved && key !== revFitKey){
+    revProg++;
+    try{
+      if (pts.length > 1) revMap.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom:16 });
+      else revMap.setView([revStop.lat,revStop.lng], 16);
+    } finally { setTimeout(()=>{ revProg = Math.max(0, revProg-1); }, 400); }
   }
+  revFitKey = key;
 }
 
 function nearestBlurb(s){
@@ -1110,8 +1592,10 @@ function render(){
     const li = document.createElement("li");
     li.className = "stop" + (routed ? " routed" : "");
     let flag = "";
-    if (s.geoState === "failed") flag = '<div class="flag warn">Not found on map — tap Edit to fix</div>';
+    if (s.geoState === "failed") flag = '<div class="flag warn">Not found on map — tap Edit to search or drop a pin</div>';
     else if (s.geoState !== "ok") flag = '<div class="flag wait">Placing on map...</div>';
+    else if (s.pinned) flag = '<div class="flag pinned">Pin placed by you</div>';
+    else if (s.geoPrecision === "approx") flag = '<div class="flag rough">Rough spot — check the pin</div>';
     if (s.twin) flag += '<div class="flag twin">Another parcel for this address</div>';
     const who = [s.receiver, s.company].filter(Boolean).join(" \u00B7 ");
     li.innerHTML =
@@ -1131,7 +1615,18 @@ function render(){
   });
 
   $("emptyMsg").style.display = list.length ? "none" : "block";
-  $("stopCount").textContent = list.length;
+  /* "to go" is only the stops that are actually deliverable — the ones that
+     would not place on the map are counted separately so the header number
+     matches the boxes left in the van */
+  const broken = list.filter(s => s.geoState === "failed");
+  $("stopCount").textContent = list.length - broken.length;
+  $("fixChip").style.display = broken.length ? "inline" : "none";
+  $("fixCount").textContent = broken.length;
+  $("fixBar").style.display = broken.length ? "block" : "none";
+  if (broken.length){
+    $("btnDropFailed").textContent = "Remove the " + broken.length + " stop" +
+      (broken.length===1?"":"s") + " that would not place";
+  }
   $("btnOptimise").disabled = list.length < 2;
   $("btnRoute").disabled = list.length < 1;
   $("btnClear").disabled = stops.length === 0;
@@ -1158,7 +1653,23 @@ function render(){
   save();
 }
 
-/* ================= Map ================= */
+/* ==========================================================
+   Map
+
+   The map used to re-fit its bounds on every redraw, and a redraw happens
+   on every GPS tick, so the moment the driver panned or zoomed it snapped
+   straight back. Now it only moves the view when asked: the first draw, the
+   Fit all button, or a brand new stop arriving while he has not touched the
+   map. Any pan or pinch latches mapUserMoved and the map is left alone.
+   ========================================================== */
+let mapUserMoved = false, mapProg = 0, fittedOnce = false, lastFitKey = "";
+let showLabels = true, placing = null, placeMarker = null;
+
+function progMap(fn){
+  mapProg++;
+  try{ fn(); } finally { setTimeout(()=>{ mapProg = Math.max(0, mapProg-1); }, 400); }
+}
+
 function initMap(){
   if (mapReady) return;
   map = L.map("map", { zoomControl:true }).setView([-37.8136,144.9631], 12);
@@ -1167,40 +1678,94 @@ function initMap(){
   }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
   meLayer = L.layerGroup().addTo(map);
+  map.on("dragstart", () => { mapUserMoved = true; });
+  map.on("zoomstart", () => { if (!mapProg) mapUserMoved = true; });
+  map.on("click", e => { if (placing && e && e.latlng) dropPlacedPin(e.latlng.lat, e.latlng.lng); });
   mapReady = true;
+}
+
+function stopTip(s, n){
+  return '<b>' + n + '</b> ' + esc(s.street || "(no street)");
+}
+
+function fitAll(force){
+  if (!mapReady) return;
+  const pts = displayList().filter(s => s.lat !== null).map(s => [s.lat,s.lng]);
+  if (depotPt) pts.push([depotPt.lat,depotPt.lng]);
+  if (me) pts.push([me.lat,me.lng]);
+  if (!pts.length) return;
+  progMap(()=> map.fitBounds(L.latLngBounds(pts).pad(0.18), { maxZoom:15 }));
+  if (force) mapUserMoved = false;
+  fittedOnce = true;
 }
 
 function drawMap(){
   if (!mapReady || tab !== "map") return;
   markerLayer.clearLayers();
   const list = displayList().filter(s => s.lat !== null);
-  const pts = [];
   list.forEach((s,i) => {
+    const rough = s.geoState === "ok" && s.geoPrecision === "approx" && !s.pinned;
     const icon = L.divIcon({
       className:"", iconSize:[30,30], iconAnchor:[15,28], popupAnchor:[0,-26],
-      html:'<div class="pin"><span>'+(i+1)+'</span></div>'
+      html:'<div class="pin'+(rough?" dim":"")+'"><span>'+(i+1)+'</span></div>'
     });
     const m = L.marker([s.lat,s.lng], { icon }).addTo(markerLayer);
+    if (showLabels){
+      m.bindTooltip(stopTip(s, i+1), { permanent:true, direction:"right", offset:[12,-12],
+        className:"stoplabel", opacity:1 });
+    }
     m.bindPopup(
       '<div class="pop-street">'+esc(s.street)+'</div>' +
       '<div class="pop-sub">'+esc([s.suburb,s.postcode].filter(Boolean).join(" "))+
-        (view==="opt"&&optOrder ? " \u00B7 parcel "+s.parcel : "")+'</div>' +
+        (view==="opt"&&optOrder ? " \u00B7 parcel "+s.parcel : "")+
+        (rough ? " \u00B7 rough spot" : "")+(s.pinned ? " \u00B7 your pin" : "")+'</div>' +
       '<div class="pop-btns">' +
         '<button class="mini go" data-go="'+s.id+'">Navigate</button>' +
         '<button class="mini done" data-done="'+s.id+'">Done</button>' +
+        '<button class="mini edit" data-place="'+s.id+'">Move pin</button>' +
       '</div>'
     );
-    pts.push([s.lat,s.lng]);
   });
   if (depotPt){
     const icon = L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,15],
       html:'<div class="pin depot"><span>D</span></div>' });
     L.marker([depotPt.lat,depotPt.lng], { icon }).addTo(markerLayer).bindPopup("Depot");
-    pts.push([depotPt.lat,depotPt.lng]);
   }
   drawMe();
-  if (me) pts.push([me.lat,me.lng]);
-  if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.18), { maxZoom:15 });
+
+  /* only take the view when the set of pins actually changed and he has not
+     started looking around for himself */
+  const key = list.map(s => s.id).join(",") + "|" + (depotPt?"d":"");
+  if (!fittedOnce || (key !== lastFitKey && !mapUserMoved)) fitAll(false);
+  lastFitKey = key;
+}
+
+/* ---- putting a pin where the driver knows the stop really is ---- */
+function startPlacing(id){
+  const s = byId(id);
+  if (!s) return;
+  placing = s.id;
+  document.body.classList.add("placing");
+  $("placeBar").innerHTML = "Tap the map where <b>" + esc(s.street) + "</b> really is. Tap this bar to cancel.";
+  if (tab !== "map") $("tabMap").click();
+  if (map) map.closePopup();
+  render();
+}
+
+function dropPlacedPin(lat, lng){
+  const s = byId(placing);
+  if (!s) return;
+  s.lat = lat; s.lng = lng; s.pinned = true; s.geoState = "ok"; s.geoPrecision = "exact";
+  mapUserMoved = true;
+  render();
+  flashStrip("hit", "Pin moved for " + s.street);
+  stopPlacing();
+}
+
+function stopPlacing(){
+  placing = null;
+  document.body.classList.remove("placing");
+  render();
 }
 
 function drawMe(){
@@ -1230,7 +1795,9 @@ document.addEventListener("click", e => {
   const dl = t.getAttribute("data-del");
   const un = t.getAttribute("data-undo");
   const st = t.getAttribute("data-step");
-  if (go){ navigateTo(byId(go)); }
+  const pl = t.getAttribute("data-place");
+  if (pl){ startPlacing(+pl); }
+  else if (go){ navigateTo(byId(go)); }
   else if (dn){ const s = byId(dn); if (s){ s.done = true; s.doneSeq = ++doneCounter; if (map) map.closePopup(); render(); } }
   else if (ed){ openSheetById(+ed); }
   else if (dl){ stops = stops.filter(s => s.id !== +dl); render(); }
@@ -1255,11 +1822,43 @@ $("tabMap").addEventListener("click", () => {
   initMap();
   setTimeout(()=>{ map.invalidateSize(); drawMap(); }, 60);
 });
+let followMe = false;
+function setFollow(on){
+  followMe = on;
+  $("btnMe").classList.toggle("on", on);
+  $("btnMe").textContent = on ? "Following" : "On me";
+  if (on && me && mapReady){
+    mapUserMoved = true;                                  // his choice of view, not a fit-all
+    progMap(()=> map.setView([me.lat,me.lng], Math.max(map.getZoom()||15, 16)));
+  }
+}
 $("btnMe").addEventListener("click", ()=>{
   if (!me){ flashStrip("dup","No GPS fix yet"); return; }
-  initMap(); map.setView([me.lat,me.lng], 16);
+  initMap();
+  setFollow(!followMe);
 });
-$("btnAll").addEventListener("click", ()=>{ initMap(); drawMap(); });
+$("btnAll").addEventListener("click", ()=>{ initMap(); setFollow(false); fitAll(true); });
+$("btnLabels").addEventListener("click", ()=>{
+  showLabels = !showLabels;
+  $("btnLabels").classList.toggle("on", showLabels);
+  try{ localStorage.setItem("addressScannerWithMaps.labels", showLabels ? "1" : "0"); } catch(e){}
+  drawMap(); drawReveal();
+});
+$("btnBig").addEventListener("click", ()=>{
+  const full = document.body.classList.toggle("mapfull");
+  $("btnBig").textContent = full ? "Shrink" : "Expand";
+  $("btnBig").classList.toggle("on", full);
+  setTimeout(()=>{ if (map) map.invalidateSize(); }, 80);
+});
+$("placeBar").addEventListener("click", ()=>{ if (placing){ stopPlacing(); flashStrip("dup","Pin move cancelled"); } });
+$("btnDropFailed").addEventListener("click", ()=>{
+  const gone = stops.filter(s => !s.done && s.geoState === "failed").length;
+  if (!gone) return;
+  stops = stops.filter(s => !(!s.done && s.geoState === "failed"));
+  optOrder = null; view = "scan";
+  render();
+  flashStrip("hit", "Removed " + gone + " stop" + (gone===1?"":"s") + " that would not place");
+});
 $("pillScan").addEventListener("click", ()=>{ view="scan"; render(); });
 $("pillOpt").addEventListener("click", ()=>{ if (optOrder){ view="opt"; render(); } });
 
@@ -1504,34 +2103,140 @@ $("btnRoute").addEventListener("click", async () => {
   $("routePanel").scrollIntoView({ behavior:"smooth", block:"center" });
 });
 
-/* ================= Edit sheet ================= */
-function openSheet(index, prefill, title){
-  editingIndex = index;
-  const src = index !== null ? stops[index] : (prefill||{});
-  $("sheetTitle").textContent = title || (index !== null ? "Edit stop" : "Add stop");
-  $("edStreet").value = src.street||""; $("edSuburb").value = src.suburb||""; $("edPostcode").value = src.postcode||"";
-  $("sheetBack").style.display="block"; $("sheet").style.display="block";
+/* ==========================================================
+   Edit sheet
+
+   This is the "fix it" path and it has to actually work, because every
+   failure here costs a typed address. Three things changed: it is keyed on
+   the stop id rather than an array index that can shift underneath it, it
+   offers address search so he picks a real match instead of guessing at
+   spelling, and it carries a map with a draggable pin so an address the
+   geocoder gets wrong can simply be put in the right place by hand.
+   ========================================================== */
+let edMap = null, edMarker = null, edMapReady = false;
+let edPin = null, edPinSource = "", edPinPrecision = "";
+
+function initEdMap(){
+  if (edMapReady || !window.L) return;
+  edMap = L.map("edMap", { zoomControl:true, attributionControl:false });
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:"&copy; OpenStreetMap" }).addTo(edMap);
+  edMap.setView([-37.8836,145.0553], 13);
+  edMap.on("click", e => { if (e && e.latlng) setEdPin(e.latlng.lat, e.latlng.lng, "user", false); });
+  edMapReady = true;
 }
-function openSheetById(id){ openSheet(stops.findIndex(s=>s.id===id)); }
-function closeSheet(){ $("sheetBack").style.display="none"; $("sheet").style.display="none"; editingIndex=null; pendingStop=null; }
+
+function setEdPin(lat, lng, source, recentre){
+  edPin = { lat, lng };
+  edPinSource = source;
+  if (source === "user"){
+    edPinPrecision = "exact";
+    $("edMapNote").innerHTML = "Pin placed by you. It is <b>kept</b> — the address lookup will not move it.";
+    $("edUnpin").style.display = "block";
+  }
+  drawEdPin(recentre !== false);
+}
+
+function drawEdPin(recentre){
+  if (!edMapReady) return;
+  if (!edPin){
+    if (edMarker && edMap.removeLayer){ edMap.removeLayer(edMarker); }
+    edMarker = null;
+    return;
+  }
+  const icon = L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,28],
+    html:'<div class="pin"><span>\u25CF</span></div>' });
+  if (!edMarker){
+    edMarker = L.marker([edPin.lat, edPin.lng], { icon, draggable:true }).addTo(edMap);
+    edMarker.on("dragend", () => {
+      const ll = edMarker.getLatLng();
+      setEdPin(ll.lat, ll.lng, "user", false);
+    });
+  } else {
+    edMarker.setLatLng([edPin.lat, edPin.lng]);
+  }
+  if (recentre) edMap.setView([edPin.lat, edPin.lng], Math.max(edMap.getZoom() || 17, 17));
+}
+
+function openSheet(id, prefill, title){
+  editingId = (id === null || id === undefined) ? null : +id;
+  const src = (editingId !== null ? byId(editingId) : prefill) || {};
+  $("sheetTitle").textContent = title || (editingId !== null ? "Edit stop" : "Add stop");
+  $("edStreet").value = src.street||""; $("edSuburb").value = src.suburb||""; $("edPostcode").value = src.postcode||"";
+  $("edSearch").value = ""; $("edSug").classList.remove("on"); $("edSug").innerHTML = "";
+  const hasPt = typeof src.lat === "number" && typeof src.lng === "number";
+  edPin = hasPt ? { lat:src.lat, lng:src.lng } : null;
+  edPinSource = hasPt ? (src.pinned ? "user" : "existing") : "";
+  edPinPrecision = src.geoPrecision || "";
+  $("edUnpin").style.display = src.pinned ? "block" : "none";
+  $("edMapNote").innerHTML = src.pinned
+    ? "Pin placed by you. It is <b>kept</b> — the address lookup will not move it."
+    : "Drag the pin, or tap the map, to put this stop exactly where you know it is. A pin you place by hand is <b>kept</b> and never moved by the address lookup.";
+  $("sheetBack").style.display="block"; $("sheet").style.display="block";
+  setTimeout(()=>{
+    initEdMap();
+    if (edMapReady){
+      edMap.invalidateSize();
+      if (edPin) drawEdPin(true);
+      else {
+        const b = biasPoint();
+        if (b) edMap.setView([b.lat, b.lng], 14);
+      }
+    }
+  }, 60);
+}
+function openSheetById(id){ openSheet(id); }
+function closeSheet(){
+  $("sheetBack").style.display="none"; $("sheet").style.display="none";
+  $("edSug").classList.remove("on");
+  editingId=null; pendingStop=null; edPin=null; edPinSource=""; edPinPrecision="";
+}
 $("edCancel").addEventListener("click", closeSheet);
 $("sheetBack").addEventListener("click", closeSheet);
+
+$("edUnpin").addEventListener("click", ()=>{
+  edPin = null; edPinSource = ""; edPinPrecision = "";
+  drawEdPin(false);
+  $("edUnpin").style.display = "none";
+  $("edMapNote").innerHTML = "Pin cleared. Saving will look the address up again.";
+});
+
 $("edSave").addEventListener("click", () => {
   const street=$("edStreet").value.trim(), suburb=$("edSuburb").value.trim(), postcode=$("edPostcode").value.trim();
   if (!street){ $("edStreet").focus(); return; }
-  if (editingIndex !== null && editingIndex >= 0){
-    const s = stops[editingIndex];
+  if (editingId !== null){
+    const s = byId(editingId);
+    if (!s){ closeSheet(); return; }
+    const changed = tidy(street) !== s.street || tidy(suburb) !== s.suburb || postcode !== (s.postcode||"");
     s.street=tidy(street); s.suburb=tidy(suburb); s.postcode=postcode;
-    s.lat=null; s.lng=null; s.geoState="queued";
+    if (edPin && edPinSource === "user"){
+      s.lat=edPin.lat; s.lng=edPin.lng; s.pinned=true; s.geoState="ok"; s.geoPrecision="exact";
+    } else if (edPin && edPinSource === "suggest"){
+      s.lat=edPin.lat; s.lng=edPin.lng; s.pinned=false; s.geoState="ok"; s.geoPrecision=edPinPrecision||"approx";
+    } else if (changed || s.geoState !== "ok" || !edPin){
+      s.lat=null; s.lng=null; s.pinned=false; s.geoState="queued"; s.geoPrecision="";
+    }
     optOrder = null; view = "scan";
     closeSheet(); render(); runGeoQueue();
+    flashStrip("hit", s.geoState === "ok" ? ("Fixed: " + s.street) : ("Looking up " + s.street + "..."));
   } else {
     const p = pendingStop || {};
+    const extra = (edPin && (edPinSource === "user" || edPinSource === "suggest"))
+      ? { lat:edPin.lat, lng:edPin.lng, pinned: edPinSource === "user",
+          precision: edPinSource === "user" ? "exact" : (edPinPrecision||"approx") }
+      : {};
     closeSheet();
-    const s = addStop({ street, suburb, postcode, con:p.con||"", article:p.article||"",
-      receiver:p.receiver||"", company:p.company||"", phone:p.phone||"" });
+    const s = addStop(Object.assign({ street, suburb, postcode, con:p.con||"", article:p.article||"",
+      receiver:p.receiver||"", company:p.company||"", phone:p.phone||"" }, extra));
     openReveal(s);
   }
+});
+
+wireSuggest("edSearch", "edSug", it => {
+  $("edStreet").value = it.street; $("edSuburb").value = it.suburb; $("edPostcode").value = it.postcode;
+  $("edSearch").value = "";
+  edPinPrecision = it.exact ? "exact" : "approx";
+  initEdMap();
+  setEdPin(it.lat, it.lng, "suggest", true);
 });
 
 $("revNext").addEventListener("click", closeReveal);
@@ -1551,8 +2256,15 @@ $("btnParsePaste").addEventListener("click", ()=>{
   const p = parseLabel($("pasteRaw").value);
   if (!p){ flashStrip("dup","No address in that text"); return; }
   $("manStreet").value=p.street||""; $("manSuburb").value=p.suburb||""; $("manPostcode").value=p.postcode||"";
+  manPick = null;
   pendingStop = p;
   flashStrip("hit","Read: " + (p.street || p.suburb));
+});
+wireSuggest("manSearch", "manSug", it => {
+  $("manStreet").value = it.street; $("manSuburb").value = it.suburb; $("manPostcode").value = it.postcode;
+  $("manSearch").value = "";
+  manPick = it;                       // already geocoded, so no lookup needed on add
+  flashStrip("hit", "Picked: " + it.street);
 });
 $("btnManAdd").addEventListener("click", ()=>{
   const street = $("manStreet").value.trim();
@@ -1560,10 +2272,16 @@ $("btnManAdd").addEventListener("click", ()=>{
   const p = { street, suburb:$("manSuburb").value.trim(), postcode:$("manPostcode").value.trim(),
     con:(pendingStop&&pendingStop.con)||"", article:(pendingStop&&pendingStop.article)||"",
     receiver:(pendingStop&&pendingStop.receiver)||"" };
+  /* if he picked it out of the search list it is already placed, so skip the
+     lookup entirely — that is the fastest and the most accurate path */
+  if (manPick && manPick.street === street){
+    p.lat = manPick.lat; p.lng = manPick.lng; p.precision = manPick.exact ? "exact" : "approx";
+  }
   if (sameParcel(p)){ flashStrip("dup","Already on the run"); return; }
   const s = addStop(p);
-  $("manStreet").value=""; $("manSuburb").value=""; $("manPostcode").value=""; $("pasteRaw").value="";
-  pendingStop = null;
+  $("manStreet").value=""; $("manSuburb").value=""; $("manPostcode").value="";
+  $("manSearch").value=""; $("pasteRaw").value=""; $("manSug").classList.remove("on");
+  pendingStop = null; manPick = null;
   flashStrip("hit","Parcel "+s.parcel+": "+s.street);
   openReveal(s);
 });
@@ -1609,11 +2327,26 @@ $("depot").addEventListener("change", async ()=>{
 
 window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase, cleanStreet,
   haversine, solve, sortSteps, addStop, sameParcel, addrKey, adjacencyFactor, saveRunToHistory,
-  get stops(){ return stops; }, get historyStore(){ return historyStore; } };
+  joinAddrLines, splitStarTrackTail, stripUnit, houseNumber, geoQueries, scoreGeoHit, pickGeoHit,
+  photonHits, nominatimHits, photonUrl, hitToStop, normStreetName, stopTip, scanConfig, scannerOptions,
+  scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
+  fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
+  get stops(){ return stops; }, set stops(v){ stops = v; },
+  get optOrder(){ return optOrder; }, set optOrder(v){ optOrder = v; },
+  get view(){ return view; }, set view(v){ view = v; },
+  get tab(){ return tab; }, set tab(v){ tab = v; },
+  get me(){ return me; }, set me(v){ me = v; },
+  get depotPt(){ return depotPt; }, set depotPt(v){ depotPt = v; },
+  get placing(){ return placing; },
+  get mapUserMoved(){ return mapUserMoved; }, set mapUserMoved(v){ mapUserMoved = v; },
+  get showLabels(){ return showLabels; }, set showLabels(v){ showLabels = v; },
+  get historyStore(){ return historyStore; } };
 
 load();
 loadHistoryStore();
 renderHistoryNote();
+try{ showLabels = localStorage.getItem("addressScannerWithMaps.labels") !== "0"; } catch(e){}
+$("btnLabels").classList.toggle("on", showLabels);
 $("useHistory").addEventListener("change", save);
 render();
 startWatch();
