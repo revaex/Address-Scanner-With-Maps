@@ -74,6 +74,30 @@
   button:disabled{opacity:.45;pointer-events:none}
   button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 
+  /* Every button that opens something also closes it, so it says so: a + when
+     it is shut, a X when it is open, and it fills in while it is open. People
+     hunt for an X, so give them one on the button itself. */
+  .tog{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+  .tog:after{
+    content:"+";flex:none;width:19px;height:19px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;line-height:1;font-weight:700;
+    background:rgba(255,255,255,.10);color:var(--ink-dim);
+  }
+  .tog.on:after{content:"\2715";font-size:11px;background:rgba(0,0,0,.22);color:inherit}
+  .btn-ghost.tog.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+  .btn-amber.tog.on{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  .mini.tog{gap:5px}
+  .mini.tog:after{width:15px;height:15px;font-size:12px}
+  .mini.edit.tog.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+  .mini.edit.tog.on:after{background:rgba(0,0,0,.22)}
+
+  /* a panel that was opened by a toggle gets its own X as well */
+  .panel-x{position:absolute;top:9px;right:9px;width:30px;height:30px;padding:0;border-radius:50%;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);font-size:13px;line-height:1}
+  .panel.closable{position:relative}
+  .panel.closable h2{padding-right:36px}
+
   /* Tabs */
   .tabs{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:5px;margin-bottom:12px}
   .tab{flex:1;padding:10px;border-radius:10px;background:transparent;color:var(--ink-dim);font-size:14px;letter-spacing:.04em}
@@ -170,23 +194,33 @@
   .pop-btns{display:flex;gap:6px}
   .pop-btns button{padding:7px 11px;font-size:13px;border-radius:8px}
 
-  /* Reveal sheet after each scan */
+  /* The one stop card: scanned, edited or confirmed, always the same screen */
   #reveal{position:fixed;inset:0;z-index:1300;background:rgba(6,9,14,.82);display:none;align-items:flex-end}
   #reveal.on{display:flex}
   .rev-card{width:100%;max-width:600px;margin:0 auto;background:var(--panel);border-top:2px solid var(--green);
-    border-radius:18px 18px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
-    height:94vh;max-height:94vh;overflow:auto;display:flex;flex-direction:column;animation:rise .18s ease-out}
+    border-radius:18px 18px 0 0;height:96vh;max-height:96vh;overflow:hidden;
+    display:flex;flex-direction:column;animation:rise .18s ease-out}
   @keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
   @media (prefers-reduced-motion:reduce){.rev-card{animation:none}}
-  .rev-tag{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green);margin-bottom:6px}
+  .rev-top{flex:none;padding:12px 14px 10px;position:relative;z-index:30}
+  .rev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .rev-tag{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green)}
   .rev-tag.twin{color:var(--blue)}
-  .rev-street{font-size:23px;font-weight:800;line-height:1.15}
-  .rev-sub{font-size:13px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
-  #revMap{height:48vh;min-height:240px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);flex:none}
-  .rev-near{font-size:13.5px;color:var(--ink);margin-top:11px;border-left:2px solid var(--green);padding-left:10px;line-height:1.55}
+  .rev-tag.edit{color:var(--amber)}
+  .rev-x{flex:none;width:34px;height:34px;padding:0;border-radius:50%;background:var(--panel-2);
+    border:1px solid var(--line);color:var(--ink);font-size:15px;line-height:1}
+  .rev-top input[type=text]{font-size:17px;padding:13px 12px}
+  .edwhere{font-size:12.5px;color:var(--ink-dim);margin-top:6px;min-height:17px}
+  .edwhere b{color:var(--ink)}
+  .edwhere.rough b{color:var(--amber)}
+  .edwhere.mine b{color:var(--green)}
+  #revMap{flex:1 1 auto;min-height:180px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .rev-bottom{flex:none;padding:9px 14px calc(12px + env(safe-area-inset-bottom));background:var(--panel)}
+  .rev-near{font-size:13px;color:var(--ink);line-height:1.45}
   .rev-near b{color:var(--green)}
   .rev-near .far{color:var(--blue)}
-  .rev-btns{display:flex;gap:8px;margin-top:auto;padding-top:12px}
+  #edUnpin{margin-top:8px;padding:9px;font-size:12.5px;display:none}
+  .rev-btns{display:flex;gap:8px;margin-top:9px}
   .rev-btns .btn{flex:1;width:auto}
 
   /* Optimise */
@@ -232,21 +266,6 @@
   .dock-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
   .dock .btn{flex:1;padding:15px}
 
-  #sheetBack{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:1200}
-  /* top-anchored and scrollable so the on-screen keyboard can never bury the
-     Save button, which is why fixing an address used to fail so often */
-  #sheet{position:fixed;left:0;right:0;top:0;bottom:0;z-index:1201;display:none;background:var(--panel);
-    border-top:2px solid var(--amber);padding:0;max-width:600px;margin:0 auto;overflow:hidden;flex-direction:column}
-  #sheet .sheet-top{flex:none;padding:calc(12px + env(safe-area-inset-top)) 14px 10px;position:relative;z-index:30}
-  #sheet h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
-  #sheet .sheet-top input[type=text]{font-size:17px;padding:13px 12px}
-  .edwhere{font-size:12.5px;color:var(--ink-dim);margin-top:6px;min-height:17px}
-  .edwhere b{color:var(--ink)}
-  .edwhere.rough b{color:var(--amber)}
-  .edwhere.mine b{color:var(--green)}
-  #sheet .sheet-bottom{flex:none;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
-    background:var(--panel);border-top:1px solid var(--line)}
-  #sheet .btn-row{margin-top:8px}
   .sugbox{position:relative}
   .suglist{list-style:none;margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:none;
     position:absolute;left:0;right:0;top:100%;z-index:40;box-shadow:0 8px 22px rgba(0,0,0,.55);max-height:52vh;overflow-y:auto}
@@ -256,10 +275,6 @@
   .suglist li b{display:block;font-weight:700}
   .suglist li span{color:var(--ink-dim);font-size:12.5px}
   .suglist li.hint{color:var(--ink-dim);font-size:13px;cursor:default}
-  #edMap{flex:1 1 auto;min-height:180px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel-2)}
-  .edmapnote{font-size:12.5px;color:var(--ink-dim);line-height:1.45}
-  .edmapnote b{color:var(--amber)}
-  #edUnpin{margin-top:8px;padding:10px;font-size:13px}
 
   .modalBack{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:1200}
   .modal{position:fixed;left:0;right:0;bottom:0;z-index:1201;display:none;background:var(--panel);border-top:2px solid var(--amber);border-radius:18px 18px 0 0;padding:18px 16px 26px;max-width:600px;margin:0 auto}
@@ -300,12 +315,13 @@
   <div id="reader"></div>
 
   <div class="btn-row" style="margin-bottom:12px">
-    <button class="btn btn-amber" id="btnScan">Start scanning</button>
-    <button class="btn btn-ghost" id="btnTorch" style="display:none;flex:0 0 92px">Light</button>
-    <button class="btn btn-ghost" id="btnManual">Add by hand</button>
+    <button class="btn btn-amber tog" id="btnScan">Start scanning</button>
+    <button class="btn btn-ghost tog" id="btnTorch" style="display:none;flex:0 0 92px">Light</button>
+    <button class="btn btn-ghost tog" id="btnManual">Add by hand</button>
   </div>
 
-  <div class="panel" id="camHelp" style="display:none">
+  <div class="panel closable" id="camHelp" style="display:none">
+    <button class="panel-x" id="camHelpX" aria-label="Close">✕</button>
     <h2>Camera</h2>
     <div id="camHelpText"></div>
     <label for="fileInput">Or read a photo of the label</label>
@@ -317,7 +333,8 @@
   </div>
   <div class="note" id="ocrNote" style="display:none;margin:-6px 0 12px"></div>
 
-  <div class="panel" id="manualPanel" style="display:none">
+  <div class="panel closable" id="manualPanel" style="display:none">
+    <button class="panel-x" id="manualX" aria-label="Close">✕</button>
     <h2>Add a stop</h2>
     <label for="manStreet">Address</label>
     <div class="sugbox">
@@ -348,10 +365,10 @@
     <div class="maptools">
       <button class="mini edit" id="btnMe">On me</button>
       <button class="mini edit" id="btnAll">Fit all</button>
-      <button class="mini edit" id="btnLabels">Labels</button>
-      <button class="mini edit" id="btnFitDepot">+ Depot</button>
-      <button class="mini edit" id="btnAddHere">Add stop</button>
-      <button class="mini edit" id="btnBig">Expand</button>
+      <button class="mini edit tog" id="btnLabels">Labels</button>
+      <button class="mini edit tog" id="btnFitDepot">+ Depot</button>
+      <button class="mini edit tog" id="btnAddHere">Add stop</button>
+      <button class="mini edit tog" id="btnBig">Expand</button>
     </div>
     <div class="grabber" id="mapGrab"><i></i></div>
     <div id="map"></div>
@@ -387,7 +404,7 @@
     </label>
     <div class="note" id="historyNote">No runs saved yet.</div>
     <div class="btn-row" style="margin-top:10px">
-      <button class="btn btn-ghost" id="btnViewRuns">View saved runs</button>
+      <button class="btn btn-ghost tog" id="btnViewRuns">View saved runs</button>
       <button class="btn btn-ghost" id="btnExportCsv">Export</button>
     </div>
     <div class="note" id="storeNote" style="margin-top:10px"></div>
@@ -445,36 +462,25 @@
 
 <div id="reveal">
   <div class="rev-card">
-    <div class="rev-tag" id="revTag">Scanned</div>
-    <div class="rev-street" id="revStreet">—</div>
-    <div class="rev-sub" id="revSub"></div>
-    <div class="grabber" id="revGrab"><i></i></div>
+    <div class="rev-top">
+      <div class="rev-head">
+        <div class="rev-tag" id="revTag">Scanned</div>
+        <button class="rev-x" id="revClose" aria-label="Close">✕</button>
+      </div>
+      <div class="sugbox">
+        <input type="text" id="edStreet" placeholder="Type the address, or drag the pin" autocomplete="off">
+        <ul class="suglist" id="edSug"></ul>
+      </div>
+      <div class="edwhere" id="edWhere"></div>
+    </div>
     <div id="revMap"></div>
-    <div class="rev-near" id="revNear"></div>
-    <div class="rev-btns">
-      <button class="btn btn-amber" id="revNext">Next parcel</button>
-      <button class="btn btn-ghost" id="revEdit">Fix address</button>
-    </div>
-  </div>
-</div>
-
-<div id="sheetBack"></div>
-<div id="sheet">
-  <div class="sheet-top">
-    <h3 id="sheetTitle">Check this stop</h3>
-    <div class="sugbox">
-      <input type="text" id="edStreet" placeholder="Type the address, or tap the map" autocomplete="off">
-      <ul class="suglist" id="edSug"></ul>
-    </div>
-    <div class="edwhere" id="edWhere"></div>
-  </div>
-  <div id="edMap"></div>
-  <div class="sheet-bottom">
-    <div class="edmapnote" id="edMapNote">Drag the pin, or tap the map, to put this stop exactly where you know it is.</div>
-    <button class="btn btn-ghost" id="edUnpin">Undo my pin, look the address up again</button>
-    <div class="btn-row">
-      <button class="btn btn-amber" id="edSave">Save stop</button>
-      <button class="btn btn-ghost" id="edCancel">Discard</button>
+    <div class="rev-bottom">
+      <div class="rev-near" id="revNear"></div>
+      <button class="btn btn-ghost" id="edUnpin">Undo my pin, look the address up again</button>
+      <div class="rev-btns">
+        <button class="btn btn-amber" id="revNext">Next parcel</button>
+        <button class="btn btn-ghost" id="revSecond">Remove this one</button>
+      </div>
     </div>
   </div>
 </div>
@@ -962,6 +968,17 @@ function parseLabel(raw){
   return null;
 }
 
+/* every toggle goes through here, so the label, the fill and the +/X marker
+   can never drift out of step with what is actually open */
+function setToggle(id, on, label){
+  const b = $(id);
+  if (!b) return on;
+  b.classList.toggle("on", !!on);
+  b.setAttribute("aria-pressed", on ? "true" : "false");
+  if (label) b.textContent = label;
+  return !!on;
+}
+
 /* ================= Scan feedback ================= */
 function flashStrip(kind, msg){
   const strip = $("scanStrip");
@@ -1064,7 +1081,7 @@ function scannerOptions(){
 async function offerTorch(){
   $("btnTorch").style.display = "none";
   torchOn = false;
-  $("btnTorch").textContent = "Light";
+  setToggle("btnTorch", false, "Light");
   try{
     const caps = scanner.getRunningTrackCapabilities();
     if (caps && "torch" in caps) $("btnTorch").style.display = "block";
@@ -1095,7 +1112,7 @@ async function startScanner(){
   stream.getTracks().forEach(t=>t.stop());
   $("camHelp").style.display = "none";
   $("reader").style.display = "block";
-  $("btnScan").textContent = "Stop camera";
+  setToggle("btnScan", true, "Scanning");
   try{
     scanner = new Html5Qrcode("reader", scannerOptions());
     try{
@@ -1123,7 +1140,7 @@ function stopScanner(){
   $("btnTorch").style.display = "none";
   $("ocrRow").style.display = "none";
   $("ocrNote").style.display = "none";
-  $("btnScan").textContent = "Start scanning";
+  setToggle("btnScan", false, "Start scanning");
   $("scanStrip").classList.remove("live");
   $("scanMsg").textContent = "Camera off";
 }
@@ -1133,7 +1150,7 @@ $("btnTorch").addEventListener("click", async ()=>{
   torchOn = !torchOn;
   try{
     await scanner.applyVideoConstraints({ advanced:[{ torch: torchOn }] });
-    $("btnTorch").textContent = torchOn ? "Light on" : "Light";
+    setToggle("btnTorch", torchOn, torchOn ? "Light on" : "Light");
   } catch(e){
     torchOn = false;
     flashStrip("dup","This camera has no light");
@@ -1585,18 +1602,83 @@ function fmtDist(km){
   return m < 950 ? (Math.round(m/10)*10) + " m" : km.toFixed(1) + " km";
 }
 
-/* ================= Reveal: where this parcel goes ================= */
-let revMap = null, revLayer = null, revStop = null;
-let revUserMoved = false, revProg = 0, revFitKey = "", revLayerKey = "";
+/* ==========================================================
+   The stop card
 
-function openReveal(s){
-  revStop = s;
+   One screen does the lot: what was just scanned, where it landed, and both
+   ways of correcting it. The address box at the top is the same predicting
+   box as everywhere else, and the map underneath is live — drag the pin or
+   tap the map and the stop moves. There used to be a separate "fix address"
+   screen with its own second map, which meant leaving this one to nudge a pin
+   by fifty metres. Nothing is committed until he taps the primary button.
+   ========================================================== */
+let revMap = null, revLayer = null, revStop = null, revMarker = null;
+let revUserMoved = false, revProg = 0, revFitKey = "", revLayerKey = "";
+let cardMode = "scanned";                       // scanned | edit | confirm
+let edSuburbVal = "", edPostcodeVal = "", edOpenStreet = "";
+
+function cardOpen(){ return $("reveal").classList.contains("on"); }
+
+function edWhereSay(){
+  const el = $("edWhere");
+  const place = [edSuburbVal, edPostcodeVal].filter(Boolean).join(" ");
+  if (edPinSource === "user"){
+    el.className = "edwhere mine";
+    el.innerHTML = "Pin placed by you \u00B7 <b>kept</b>, the address lookup will not move it" +
+      (place ? " \u00B7 " + esc(place) : "");
+  } else if (edPin && edPinPrecision === "approx"){
+    el.className = "edwhere rough";
+    el.innerHTML = "<b>Rough spot</b> \u2014 street is right, number is a guess. Drag the pin to fix it." +
+      (place ? " \u00B7 " + esc(place) : "");
+  } else if (edPin){
+    el.className = "edwhere";
+    el.innerHTML = (place ? "Placed in <b>" + esc(place) + "</b>" : "Placed on the map") +
+      " \u00B7 drag the pin to move it";
+  } else {
+    el.className = "edwhere";
+    el.innerHTML = place ? ("<b>" + esc(place) + "</b> \u00B7 not placed yet") : "Not placed yet \u00B7 tap the map to place it";
+  }
+}
+
+function openCard(opts){
+  const o = opts || {};
+  cardMode = o.mode || "scanned";
+  revStop = o.stop || null;
+  editingId = revStop ? revStop.id : null;
+  const src = revStop || o.prefill || {};
+
   revUserMoved = false; revFitKey = ""; revLayerKey = "";
-  const n = twinCount(s.street, s.suburb);
-  $("revTag").textContent = n > 1 ? ("Scanned \u00B7 parcel " + n + " for this address") : ("Scanned \u00B7 parcel " + s.parcel);
-  $("revTag").className = "rev-tag" + (n > 1 ? " twin" : "");
-  $("revStreet").textContent = s.street;
-  $("revSub").textContent = [s.suburb, s.postcode].filter(Boolean).join(" ") + (s.receiver ? " \u00B7 " + s.receiver : "");
+  $("edStreet").value = src.street || "";
+  edOpenStreet = src.street || "";
+  edSuburbVal = src.suburb || "";
+  edPostcodeVal = src.postcode || "";
+  $("edSug").classList.remove("on"); $("edSug").innerHTML = "";
+
+  const hasPt = typeof src.lat === "number" && typeof src.lng === "number";
+  edPin = hasPt ? { lat:src.lat, lng:src.lng } : null;
+  edPinSource = hasPt ? (src.pinned ? "user" : "existing") : "";
+  edPinPrecision = src.geoPrecision || "";
+  $("edUnpin").style.display = src.pinned ? "block" : "none";
+
+  if (cardMode === "scanned" && revStop){
+    const n = twinCount(revStop.street, revStop.suburb);
+    $("revTag").textContent = n > 1 ? ("Scanned \u00B7 parcel " + n + " for this address") : ("Scanned \u00B7 parcel " + revStop.parcel);
+    $("revTag").className = "rev-tag" + (n > 1 ? " twin" : "");
+    $("revNext").textContent = "Next parcel";
+    $("revSecond").textContent = "Remove this one";
+  } else if (cardMode === "edit"){
+    $("revTag").textContent = o.title || ("Parcel " + (revStop ? revStop.parcel : ""));
+    $("revTag").className = "rev-tag edit";
+    $("revNext").textContent = "Save";
+    $("revSecond").textContent = "Cancel";
+  } else {
+    $("revTag").textContent = o.title || "Check this address";
+    $("revTag").className = "rev-tag edit";
+    $("revNext").textContent = "Add stop";
+    $("revSecond").textContent = "Cancel";
+  }
+
+  edWhereSay();
   $("reveal").classList.add("on");
   setTimeout(()=>{
     if (!revMap && window.L){
@@ -1606,81 +1688,222 @@ function openReveal(s){
       revMap.setView([-37.8836,145.0553], 13);
       revMap.on("dragstart", () => { revUserMoved = true; });
       revMap.on("zoomstart", () => { if (!revProg) revUserMoved = true; });
+      revMap.on("click", e => { if (e && e.latlng) setEdPin(e.latlng.lat, e.latlng.lng, "user"); });
     }
     if (revMap) revMap.invalidateSize();
     drawReveal();
   }, 60);
 }
 
-function closeReveal(){ $("reveal").classList.remove("on"); revStop = null; }
+function openReveal(s){ openCard({ stop:s, mode:"scanned" }); }
+function openSheet(id, prefill, title){
+  const stop = (id === null || id === undefined) ? null : byId(+id);
+  openCard(stop ? { stop, mode:"edit", title } : { prefill, mode:"confirm", title });
+}
+function openSheetById(id){ openSheet(id); }
+
+function closeCard(){
+  $("reveal").classList.remove("on");
+  $("edSug").classList.remove("on");
+  revStop = null; editingId = null; pendingStop = null; revMarker = null;
+  edPin = null; edPinSource = ""; edPinPrecision = "";
+  edSuburbVal = ""; edPostcodeVal = ""; edOpenStreet = "";
+}
+function closeReveal(){ closeCard(); }
+function closeSheet(){ closeCard(); }
+
+/* moving the pin, from a drag or a tap on the map */
+function setEdPin(lat, lng, source){
+  if (!cardOpen()) return;
+  edPin = { lat, lng };
+  edPinSource = source;
+  if (source === "user"){
+    edPinPrecision = "exact";
+    $("edUnpin").style.display = "block";
+  }
+  edWhereSay();
+  revLayerKey = "";
+  drawReveal();
+}
+
+$("edUnpin").addEventListener("click", ()=>{
+  /* "cleared" rather than blank, so the lookup landing does not quietly put
+     the pin straight back */
+  edPin = null; edPinSource = "cleared"; edPinPrecision = "";
+  $("edUnpin").style.display = "none";
+  edWhereSay();
+  revLayerKey = "";
+  drawReveal();
+});
+
+/* if he typed a whole address instead of picking one, read the suburb and
+   postcode back out of it rather than making him fill in separate boxes */
+function edFields(){
+  const typed = $("edStreet").value.trim();
+  let street = typed, suburb = edSuburbVal, postcode = edPostcodeVal;
+  if (typed && typed !== edOpenStreet && edPinSource !== "suggest"){
+    let g = null;
+    try{ g = parseLoose(typed); } catch(e){}
+    if (g && g.street){
+      street = g.street;
+      if (g.suburb) suburb = g.suburb;
+      if (g.postcode) postcode = g.postcode;
+    }
+  }
+  return { street, suburb, postcode };
+}
+
+function commitCard(){
+  const f = edFields();
+  if (!f.street){ $("edStreet").focus(); return false; }
+  if (revStop){
+    const s = revStop;
+    const changed = tidy(f.street) !== s.street || tidy(f.suburb) !== s.suburb || f.postcode !== (s.postcode||"");
+    s.street = tidy(f.street); s.suburb = tidy(f.suburb); s.postcode = f.postcode;
+    if (edPin && edPinSource === "user"){
+      s.lat=edPin.lat; s.lng=edPin.lng; s.pinned=true; s.geoState="ok"; s.geoPrecision="exact";
+    } else if (edPin && edPinSource === "suggest"){
+      s.lat=edPin.lat; s.lng=edPin.lng; s.pinned=false; s.geoState="ok"; s.geoPrecision=edPinPrecision||"approx";
+    } else if (changed || s.geoState !== "ok" || !edPin){
+      s.lat=null; s.lng=null; s.pinned=false; s.geoState="queued"; s.geoPrecision="";
+    }
+    if (changed){ optOrder = null; view = "scan"; }
+    closeCard(); render(); runGeoQueue();
+    return true;
+  }
+  const p = pendingStop || {};
+  const extra = (edPin && (edPinSource === "user" || edPinSource === "suggest"))
+    ? { lat:edPin.lat, lng:edPin.lng, pinned: edPinSource === "user",
+        precision: edPinSource === "user" ? "exact" : (edPinPrecision||"approx") }
+    : {};
+  closeCard();
+  const s = addStop(Object.assign({ street:f.street, suburb:f.suburb, postcode:f.postcode,
+    con:p.con||"", article:p.article||"", receiver:p.receiver||"", company:p.company||"", phone:p.phone||"" }, extra));
+  openReveal(s);
+  return true;
+}
+
+$("revNext").addEventListener("click", commitCard);
+$("revClose").addEventListener("click", ()=>{ if (cardMode === "scanned") commitCard(); else closeCard(); });
+$("revSecond").addEventListener("click", ()=>{
+  if (cardMode === "scanned" && revStop){
+    const gone = revStop.id, street = revStop.street;
+    closeCard();
+    stops = stops.filter(x => x.id !== gone);
+    optOrder = null; view = "scan";
+    render();
+    flashStrip("dup", "Removed " + street);
+  } else closeCard();
+});
+$("reveal").addEventListener("click", e => { if (e.target.id === "reveal") closeCard(); });
+
+wireSuggest("edStreet", "edSug", it => {
+  $("edStreet").value = it.street;
+  edOpenStreet = it.street;
+  if (it.suburb) edSuburbVal = it.suburb;
+  if (it.postcode) edPostcodeVal = it.postcode;
+  edPinPrecision = it.exact ? "exact" : "approx";
+  edPin = { lat:it.lat, lng:it.lng };
+  edPinSource = "suggest";
+  edWhereSay();
+  revUserMoved = false; revFitKey = ""; revLayerKey = "";
+  drawReveal();
+});
 
 function revealKey(){
   return stops.filter(s => !s.done && s.lat !== null)
       .map(s => s.id + ":" + s.lat.toFixed(5) + "," + s.lng.toFixed(5)).join(";") +
-    "|" + (revStop ? revStop.id : "") +
+    "|" + (revStop ? revStop.id : "new") +
+    "|" + (edPin ? edPin.lat.toFixed(5) + "," + edPin.lng.toFixed(5) : "-") +
     "|" + (me ? me.lat.toFixed(4) + "," + me.lng.toFixed(4) : "") +
     "|" + (depotPt ? "d" : "") + "|" + (showLabels ? "L" : "");
 }
 
 function drawReveal(){
-  if (!revStop || !$("reveal").classList.contains("on")) return;
+  if (!cardOpen()) return;
+  /* the card usually opens before the address lookup has finished, so adopt
+     the position the moment it lands — unless he has already put the pin
+     somewhere himself, in which case his stands */
+  if (revStop && !edPin && revStop.lat !== null && edPinSource !== "user" && edPinSource !== "cleared"){
+    edPin = { lat:revStop.lat, lng:revStop.lng };
+    edPinSource = "existing";
+    edPinPrecision = revStop.geoPrecision || "";
+    if (revStop.suburb && !edSuburbVal) edSuburbVal = revStop.suburb;
+    if (revStop.postcode && !edPostcodeVal) edPostcodeVal = revStop.postcode;
+    edWhereSay();
+  }
   $("revNear").innerHTML = nearestBlurb(revStop);
   if (!revMap || !revLayer) return;
   const drawKey = revealKey();
   if (drawKey === revLayerKey) return;
   revLayerKey = drawKey;
   revLayer.clearLayers();
-  const pts = [];
+  revMarker = null;
 
   stops.forEach(s => {
     if (s.lat === null || s.done) return;
-    const fresh = s.id === revStop.id;
-    const icon = L.divIcon({ className:"", iconSize:fresh?[38,38]:[30,30], iconAnchor:fresh?[19,36]:[15,28],
-      html:'<div class="pin '+(fresh?"fresh":"dim")+'"><span>'+(fresh?"\u25CF":s.parcel)+'</span></div>' });
+    if (revStop && s.id === revStop.id) return;         // drawn separately, draggable
+    const icon = L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,28],
+      html:'<div class="pin dim"><span>'+s.parcel+'</span></div>' });
     const m = L.marker([s.lat,s.lng], { icon }).addTo(revLayer);
     if (showLabels){
       m.bindTooltip(stopTip(s, s.parcel), { permanent:true, direction:"right",
-        offset:fresh?[16,-14]:[12,-12], className:"stoplabel", opacity:1 });
+        offset:[12,-12], className:"stoplabel", opacity:1 });
     }
-    pts.push([s.lat,s.lng]);
   });
+
+  /* the stop being worked on: drag it and it moves */
+  if (edPin){
+    const icon = L.divIcon({ className:"", iconSize:[38,38], iconAnchor:[19,36],
+      html:'<div class="pin fresh"><span>\u25CF</span></div>' });
+    revMarker = L.marker([edPin.lat, edPin.lng], { icon, draggable:true, autoPan:true }).addTo(revLayer);
+    revMarker.on("dragend", () => {
+      const ll = revMarker.getLatLng();
+      setEdPin(ll.lat, ll.lng, "user");
+    });
+  }
   if (me){
     L.marker([me.lat,me.lng], { icon:L.divIcon({ className:"", iconSize:[16,16], iconAnchor:[8,8],
       html:'<div class="medot"></div>' }) }).addTo(revLayer);
-    pts.push([me.lat,me.lng]);
   }
   if (depotPt){
     L.marker([depotPt.lat,depotPt.lng], { icon:L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,15],
       html:'<div class="pin depot"><span>D</span></div>' }) }).addTo(revLayer);
   }
 
-  /* once he pans or zooms this map it is his — only take the view back when
-     the stop being revealed first lands on the map */
-  const key = revStop.id + "|" + (revStop.lat === null ? "-" : "x");
-  if (revStop.lat !== null && !revUserMoved && key !== revFitKey){
-    /* the question this map answers is "where does THIS parcel go", so it
-       opens right on top of the stop rather than framing the whole run */
+  /* open right on top of this stop, then leave the view alone */
+  const key = (revStop ? revStop.id : "new") + "|" + (edPin ? "x" : "-");
+  if (edPin && !revUserMoved && key !== revFitKey){
     revProg++;
-    try{ revMap.setView([revStop.lat,revStop.lng], 17); }
+    try{ revMap.setView([edPin.lat, edPin.lng], 17); }
     finally { setTimeout(()=>{ revProg = Math.max(0, revProg-1); }, 400); }
+  } else if (!edPin && !revUserMoved && key !== revFitKey){
+    const b = biasPoint();
+    if (b){
+      revProg++;
+      try{ revMap.setView([b.lat, b.lng], 15); }
+      finally { setTimeout(()=>{ revProg = Math.max(0, revProg-1); }, 400); }
+    }
   }
   revFitKey = key;
 }
 
 function nearestBlurb(s){
+  if (!s){
+    return edPin ? "Drag the pin to move this stop, or type the address above."
+                 : "Tap the map to drop the pin, or type the address above.";
+  }
   if (s.geoState === "queued" || s.geoState === "working") return "Finding it on the map...";
-  if (s.lat === null) return "This address would not place on the map. Tap <b>Fix address</b> and correct it.";
+  if (!edPin) return "Not on the map yet. Type the address above, or tap the map to place it.";
+  const here = { lat:edPin.lat, lng:edPin.lng };
   const out = [];
-  if (me) out.push("<b>" + fmtDist(haversine(me,s)) + "</b> from you.");
+  if (me) out.push("<b>" + fmtDist(haversine(me, here)) + "</b> from you.");
   const others = stops.filter(o => o.id !== s.id && o.lat !== null && !o.done);
   if (others.length){
     let best = null, bd = Infinity;
-    others.forEach(o => { const d = haversine(o,s); if (d < bd){ bd = d; best = o; } });
-    out.push("Nearest one already scanned: <b>" + esc(best.street) + "</b>, " + fmtDist(bd) +
+    others.forEach(o => { const d = haversine(o, here); if (d < bd){ bd = d; best = o; } });
+    out.push("Nearest already scanned: <b>" + esc(best.street) + "</b>, " + fmtDist(bd) +
              " away \u00B7 parcel " + best.parcel + ".");
-    let far = null, fd = -1;
-    others.forEach(o => { const d = haversine(o,s); if (d > fd){ fd = d; far = o; } });
-    if (others.length > 1 && fd > 3) out.push('<span class="far">Furthest from the rest of the run by ' + fmtDist(fd) + ".</span>");
   } else {
     out.push("First stop on the run.");
   }
@@ -1935,7 +2158,7 @@ function startAdding(){
   adding = true;
   document.body.classList.add("adding");
   $("btnAddHere").classList.add("adding");
-  $("btnAddHere").textContent = "Tapping";
+  setToggle("btnAddHere", true, "Tapping");
   $("placeBar").innerHTML = "Tap the map to drop a stop there. It stays on until you tap this bar.";
   if (tab !== "map") $("tabMap").click();
   render();
@@ -1945,7 +2168,7 @@ function stopAdding(){
   adding = false;
   document.body.classList.remove("adding");
   $("btnAddHere").classList.remove("adding");
-  $("btnAddHere").textContent = "Add stop";
+  setToggle("btnAddHere", false, "Add stop");
   render();
 }
 
@@ -2050,7 +2273,7 @@ $("btnMe").addEventListener("click", ()=>{
 $("btnAll").addEventListener("click", ()=>{ initMap(); setFollow(false); fitAll(true); });
 $("btnLabels").addEventListener("click", ()=>{
   showLabels = !showLabels;
-  $("btnLabels").classList.toggle("on", showLabels);
+  setToggle("btnLabels", showLabels, showLabels ? "Labels on" : "Labels");
   try{ localStorage.setItem("addressScannerWithMaps.labels", showLabels ? "1" : "0"); } catch(e){}
   drawMap(); drawReveal();
 });
@@ -2087,7 +2310,7 @@ function makeResizer(grabId, targetId, storeKey, minPx, onDone){
 
 $("btnFitDepot").addEventListener("click", ()=>{
   fitDepot = !fitDepot;
-  $("btnFitDepot").classList.toggle("on", fitDepot);
+  setToggle("btnFitDepot", fitDepot, fitDepot ? "Depot in" : "+ Depot");
   try{ localStorage.setItem("addressScannerWithMaps.fitDepot", fitDepot ? "1" : "0"); } catch(e){}
   initMap(); setFollow(false); fitAll(true);
   flashStrip("hit", fitDepot ? "Fitting the stops and the depot" : "Fitting the stops only");
@@ -2095,8 +2318,7 @@ $("btnFitDepot").addEventListener("click", ()=>{
 
 $("btnBig").addEventListener("click", ()=>{
   const full = document.body.classList.toggle("mapfull");
-  $("btnBig").textContent = full ? "Shrink" : "Expand";
-  $("btnBig").classList.toggle("on", full);
+  setToggle("btnBig", full, full ? "Full screen" : "Expand");
   setTimeout(()=>{ if (map) map.invalidateSize(); }, 80);
 });
 $("placeBar").addEventListener("click", ()=>{
@@ -2725,8 +2947,13 @@ function openRuns(){
   renderRunList();
   $("runsBack").style.display = "block";
   $("runsSheet").style.display = "block";
+  setToggle("btnViewRuns", true, "Saved runs");
 }
-function closeRuns(){ $("runsBack").style.display = "none"; $("runsSheet").style.display = "none"; }
+function closeRuns(){
+  $("runsBack").style.display = "none";
+  $("runsSheet").style.display = "none";
+  setToggle("btnViewRuns", false, "View saved runs");
+}
 
 async function exportCsv(){
   const rows = historyRows(true);
@@ -2736,7 +2963,7 @@ async function exportCsv(){
   else if (how !== "cancelled") flashStrip("hit", rows.length + " rows exported");
 }
 
-$("btnViewRuns").addEventListener("click", openRuns);
+$("btnViewRuns").addEventListener("click", ()=>{ if ($("runsSheet").style.display === "block") closeRuns(); else openRuns(); });
 $("runsClose").addEventListener("click", closeRuns);
 $("runsBack").addEventListener("click", closeRuns);
 $("btnExportCsv").addEventListener("click", exportCsv);
@@ -2776,208 +3003,15 @@ function renderStoreNote(){
     (n ? "" : " Nothing has been saved yet.");
 }
 
-/* ==========================================================
-   Edit sheet
-
-
-   This is the "fix it" path and it has to actually work, because every
-   failure here costs a typed address. Three things changed: it is keyed on
-   the stop id rather than an array index that can shift underneath it, it
-   offers address search so he picks a real match instead of guessing at
-   spelling, and it carries a map with a draggable pin so an address the
-   geocoder gets wrong can simply be put in the right place by hand.
-   ========================================================== */
-let edMap = null, edMarker = null, edMapReady = false;
-let edPin = null, edPinSource = "", edPinPrecision = "";
-
-function initEdMap(){
-  if (edMapReady || !window.L) return;
-  edMap = L.map("edMap", { zoomControl:true, attributionControl:false });
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:"&copy; OpenStreetMap" }).addTo(edMap);
-  edMap.setView([-37.8836,145.0553], 13);
-  edMap.on("click", e => { if (e && e.latlng) setEdPin(e.latlng.lat, e.latlng.lng, "user", false); });
-  edMapReady = true;
-}
-
-function setEdPin(lat, lng, source, recentre){
-  edPin = { lat, lng };
-  edPinSource = source;
-  if (source === "user"){
-    edPinPrecision = "exact";
-    $("edMapNote").innerHTML = "Pin placed by you. It is <b>kept</b> — the address lookup will not move it.";
-    $("edUnpin").style.display = "block";
-  }
-  edWhereSay();
-  drawEdPin(recentre !== false);
-}
-
-function drawEdPin(recentre){
-  if (!edMapReady) return;
-  if (!edPin){
-    if (edMarker && edMap.removeLayer){ edMap.removeLayer(edMarker); }
-    edMarker = null;
-    return;
-  }
-  const icon = L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,28],
-    html:'<div class="pin"><span>\u25CF</span></div>' });
-  if (!edMarker){
-    edMarker = L.marker([edPin.lat, edPin.lng], { icon, draggable:true }).addTo(edMap);
-    edMarker.on("dragend", () => {
-      const ll = edMarker.getLatLng();
-      setEdPin(ll.lat, ll.lng, "user", false);
-    });
-  } else {
-    edMarker.setLatLng([edPin.lat, edPin.lng]);
-  }
-  if (recentre) edMap.setView([edPin.lat, edPin.lng], Math.max(edMap.getZoom() || 17, 17));
-}
-
-/* One box, and the rest of the screen is map. Suburb and postcode were just
-   more typing on a phone: they come from whichever suggestion he picks, or are
-   read back out of what he types, or are simply kept from what was already on
-   the stop. */
-let edSuburbVal = "", edPostcodeVal = "", edOpenStreet = "";
-
-function edWhereSay(){
-  const el = $("edWhere");
-  const place = [edSuburbVal, edPostcodeVal].filter(Boolean).join(" ");
-  if (edPinSource === "user"){
-    el.className = "edwhere mine";
-    el.innerHTML = "Pin placed by you \u00B7 <b>kept</b>, the address lookup will not move it" +
-      (place ? " \u00B7 " + esc(place) : "");
-  } else if (edPin && edPinPrecision === "approx"){
-    el.className = "edwhere rough";
-    el.innerHTML = "<b>Rough spot</b> \u2014 the street is right but not the number. Tap the map to fix it." +
-      (place ? " \u00B7 " + esc(place) : "");
-  } else if (edPin){
-    el.className = "edwhere";
-    el.innerHTML = place ? ("Placed in <b>" + esc(place) + "</b>") : "Placed on the map";
-  } else {
-    el.className = "edwhere";
-    el.innerHTML = place ? ("<b>" + esc(place) + "</b> \u00B7 not placed yet") : "Not placed yet";
-  }
-}
-
-function openSheet(id, prefill, title){
-  editingId = (id === null || id === undefined) ? null : +id;
-  const src = (editingId !== null ? byId(editingId) : prefill) || {};
-  $("sheetTitle").textContent = title || (editingId !== null ? "Edit stop" : "Add stop");
-  $("edStreet").value = src.street||"";
-  edOpenStreet = src.street||"";
-  edSuburbVal = src.suburb||"";
-  edPostcodeVal = src.postcode||"";
-  $("edSug").classList.remove("on"); $("edSug").innerHTML = "";
-  const hasPt = typeof src.lat === "number" && typeof src.lng === "number";
-  edPin = hasPt ? { lat:src.lat, lng:src.lng } : null;
-  edPinSource = hasPt ? (src.pinned ? "user" : "existing") : "";
-  edPinPrecision = src.geoPrecision || "";
-  $("edUnpin").style.display = src.pinned ? "block" : "none";
-  $("edMapNote").innerHTML = "Drag the pin, or tap the map, to put this stop exactly where you know it is.";
-  edWhereSay();
-  $("sheetBack").style.display="block"; $("sheet").style.display="flex";
-  setTimeout(()=>{
-    initEdMap();
-    if (edMapReady){
-      edMap.invalidateSize();
-      if (edPin) drawEdPin(true);
-      else {
-        const b = biasPoint();
-        if (b) edMap.setView([b.lat, b.lng], 14);
-      }
-    }
-  }, 60);
-}
-function openSheetById(id){ openSheet(id); }
-function closeSheet(){
-  $("sheetBack").style.display="none"; $("sheet").style.display="none";
-  $("edSug").classList.remove("on");
-  editingId=null; pendingStop=null; edPin=null; edPinSource=""; edPinPrecision="";
-  edSuburbVal=""; edPostcodeVal=""; edOpenStreet="";
-}
-$("edCancel").addEventListener("click", closeSheet);
-$("sheetBack").addEventListener("click", closeSheet);
-
-$("edUnpin").addEventListener("click", ()=>{
-  edPin = null; edPinSource = ""; edPinPrecision = "";
-  drawEdPin(false);
-  $("edUnpin").style.display = "none";
-  $("edMapNote").innerHTML = "Pin cleared. Saving will look the address up again.";
-  edWhereSay();
-});
-
-/* if he typed a full address instead of picking one, read the suburb and
-   postcode back out of it rather than making him fill in separate boxes */
-function edFields(){
-  const typed = $("edStreet").value.trim();
-  let street = typed, suburb = edSuburbVal, postcode = edPostcodeVal;
-  if (typed && typed !== edOpenStreet && edPinSource !== "suggest"){
-    let g = null;
-    try{ g = parseLoose(typed); } catch(e){}
-    if (g && g.street){
-      street = g.street;
-      if (g.suburb) suburb = g.suburb;
-      if (g.postcode) postcode = g.postcode;
-    }
-  }
-  return { street, suburb, postcode };
-}
-
-$("edSave").addEventListener("click", () => {
-  const f = edFields();
-  if (!f.street){ $("edStreet").focus(); return; }
-  const street = f.street, suburb = f.suburb, postcode = f.postcode;
-  if (editingId !== null){
-    const s = byId(editingId);
-    if (!s){ closeSheet(); return; }
-    const changed = tidy(street) !== s.street || tidy(suburb) !== s.suburb || postcode !== (s.postcode||"");
-    s.street=tidy(street); s.suburb=tidy(suburb); s.postcode=postcode;
-    if (edPin && edPinSource === "user"){
-      s.lat=edPin.lat; s.lng=edPin.lng; s.pinned=true; s.geoState="ok"; s.geoPrecision="exact";
-    } else if (edPin && edPinSource === "suggest"){
-      s.lat=edPin.lat; s.lng=edPin.lng; s.pinned=false; s.geoState="ok"; s.geoPrecision=edPinPrecision||"approx";
-    } else if (changed || s.geoState !== "ok" || !edPin){
-      s.lat=null; s.lng=null; s.pinned=false; s.geoState="queued"; s.geoPrecision="";
-    }
-    optOrder = null; view = "scan";
-    closeSheet(); render(); runGeoQueue();
-    flashStrip("hit", s.geoState === "ok" ? ("Fixed: " + s.street) : ("Looking up " + s.street + "..."));
-  } else {
-    const p = pendingStop || {};
-    const extra = (edPin && (edPinSource === "user" || edPinSource === "suggest"))
-      ? { lat:edPin.lat, lng:edPin.lng, pinned: edPinSource === "user",
-          precision: edPinSource === "user" ? "exact" : (edPinPrecision||"approx") }
-      : {};
-    closeSheet();
-    const s = addStop(Object.assign({ street, suburb, postcode, con:p.con||"", article:p.article||"",
-      receiver:p.receiver||"", company:p.company||"", phone:p.phone||"" }, extra));
-    openReveal(s);
-  }
-});
-
-wireSuggest("edStreet", "edSug", it => {
-  $("edStreet").value = it.street;
-  edOpenStreet = it.street;
-  if (it.suburb) edSuburbVal = it.suburb;
-  if (it.postcode) edPostcodeVal = it.postcode;
-  edPinPrecision = it.exact ? "exact" : "approx";
-  initEdMap();
-  setEdPin(it.lat, it.lng, "suggest", true);
-  edWhereSay();
-});
-
-$("revNext").addEventListener("click", closeReveal);
-$("revEdit").addEventListener("click", ()=>{
-  const id = revStop && revStop.id;
-  closeReveal();
-  if (id) openSheetById(id);
-});
-$("reveal").addEventListener("click", e => { if (e.target.id === "reveal") closeReveal(); });
-
 /* ================= Manual panel ================= */
-$("btnManual").addEventListener("click", ()=>{
-  const p = $("manualPanel");
-  p.style.display = p.style.display === "none" ? "block" : "none";
-});
+function showManual(on){
+  $("manualPanel").style.display = on ? "block" : "none";
+  setToggle("btnManual", on, "Add by hand");
+  if (on) $("manStreet").focus();
+}
+$("btnManual").addEventListener("click", ()=> showManual($("manualPanel").style.display === "none"));
+$("manualX").addEventListener("click", ()=> showManual(false));
+$("camHelpX").addEventListener("click", ()=>{ $("camHelp").style.display = "none"; });
 wireSuggest("manStreet", "manSug", it => {
   $("manStreet").value = it.street;
   if (it.suburb) $("manSuburb").value = it.suburb;
@@ -3079,7 +3113,7 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, edFields, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
+  makeResizer, edFields, setToggle, openCard, commitCard, closeCard, showManual, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
   historyCsv, historyRows, historyBackup, importBackup, rebuildAdjacency, currentRunEntry,
   csvCell, fmtDateTime, fmtDate, fmtTime, runRows, openRuns, closeRuns, renderRunList,
   CSV_COLUMNS,
@@ -3104,14 +3138,14 @@ renderHistoryNote();
 renderStoreNote();
 try{ showLabels = localStorage.getItem("addressScannerWithMaps.labels") !== "0"; } catch(e){}
 try{ fitDepot = localStorage.getItem("addressScannerWithMaps.fitDepot") === "1"; } catch(e){}
-$("btnLabels").classList.toggle("on", showLabels);
-$("btnFitDepot").classList.toggle("on", fitDepot);
+setToggle("btnLabels", showLabels, showLabels ? "Labels on" : "Labels");
+setToggle("btnFitDepot", fitDepot, fitDepot ? "Depot in" : "+ Depot");
 
 /* ---- which build is actually loaded ----
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-01.5";
+const APP_VERSION = "2026-08-01.6";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
@@ -3119,7 +3153,6 @@ $("btnHardRefresh").addEventListener("click", ()=>{
 });
 
 makeResizer("mapGrab", "map", "addressScannerWithMaps.mapH", 240, ()=>{ if (map) map.invalidateSize(); });
-makeResizer("revGrab", "revMap", "addressScannerWithMaps.revMapH", 200, ()=>{ if (revMap) revMap.invalidateSize(); });
 $("useHistory").addEventListener("change", save);
 render();
 startWatch();
