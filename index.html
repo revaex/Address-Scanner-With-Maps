@@ -132,6 +132,7 @@
   .mini.done{background:var(--green);color:#04240f}
   .mini.edit{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
   .mini.del{background:transparent;color:var(--ink-dim);border:1px solid var(--line)}
+  .mini.del.arm{background:var(--red);color:#2a0000;border-color:var(--red);font-weight:800}
 
   .empty{border:1px dashed var(--line);border-radius:var(--radius);padding:22px 16px;text-align:center;color:var(--ink-dim);font-size:14px;margin-bottom:12px}
 
@@ -281,11 +282,33 @@
   .modal h3{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:4px}
   .btn-stack{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 
-  .modal.runs{top:0;bottom:0;border-radius:0;padding:0;overflow:hidden}
-  .modal.runs .runs-scroll{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  .modal.runs,.modal.full{top:0;bottom:0;border-radius:0;padding:0;overflow:hidden}
+  .modal.runs .runs-scroll,.modal.full .full-scroll{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
     padding:calc(16px + env(safe-area-inset-top)) 16px 96px}
-  .modal.runs .btn-row{position:fixed;left:0;right:0;bottom:0;max-width:600px;margin:0 auto;
+  .modal.runs .btn-row,.modal.full .btn-row{position:fixed;left:0;right:0;bottom:0;max-width:600px;margin:0 auto;
     background:var(--panel);border-top:1px solid var(--line);padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
+
+  .setgroup{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--amber);margin:20px 0 2px}
+  .setrow{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
+  .setrow .sl{flex:1;min-width:0}
+  .setrow .sl b{display:block;font-weight:700;font-size:15px}
+  .setrow .sl span{display:block;color:var(--ink-dim);font-size:12.5px;line-height:1.45;margin-top:2px}
+  .swi{flex:none;width:52px;height:31px;border-radius:16px;background:var(--panel-2);
+    border:1px solid var(--line);position:relative;padding:0;transition:background .15s ease}
+  .swi:after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;
+    background:var(--ink-dim);transition:transform .15s ease,background .15s ease}
+  .swi.on{background:var(--amber);border-color:var(--amber)}
+  .swi.on:after{transform:translateX(21px);background:var(--amber-ink)}
+  .setchoice{display:flex;flex-direction:column;gap:7px;padding:11px 0 13px;border-bottom:1px solid var(--line)}
+  .setchoice > b{font-weight:700;font-size:15px}
+  .choice{display:flex;gap:7px;flex-wrap:wrap}
+  .choice button{flex:1 1 0;min-width:130px;padding:11px 10px;font-size:13.5px;text-align:left;
+    background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line);border-radius:11px}
+  .choice button b{display:block;font-size:14px;color:var(--ink)}
+  .choice button.on{background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
+  .choice button.on b{color:var(--amber-ink)}
+  .setnote{color:var(--ink-dim);font-size:12.5px;line-height:1.45}
   .runcard{border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden;background:var(--panel-2)}
   .runhead{width:100%;text-align:left;background:transparent;color:var(--ink);padding:12px 13px;font-size:14.5px;border-radius:0}
   .runhead b{display:block;font-size:15px}
@@ -398,10 +421,6 @@
 
   <div class="panel">
     <h2>Delivery history</h2>
-    <label style="display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);margin-top:0">
-      <input type="checkbox" id="useHistory" checked style="width:auto;accent-color:var(--amber)">
-      Use my past runs to fine-tune the order
-    </label>
     <div class="note" id="historyNote">No runs saved yet.</div>
     <div class="btn-row" style="margin-top:10px">
       <button class="btn btn-ghost tog" id="btnViewRuns">View saved runs</button>
@@ -448,6 +467,7 @@
   </div>
   <div class="saveflag" id="saveFlag"></div>
   <div class="footer">
+    <button class="tog" id="btnSettings">Settings</button>
     <button id="btnResetAll">Reset everything</button>
     <div class="verline">Version <b id="verStamp"></b> <button id="btnHardRefresh">Load the latest</button></div>
   </div>
@@ -482,6 +502,20 @@
         <button class="btn btn-ghost" id="revSecond">Remove this one</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="settsBack" class="modalBack"></div>
+<div id="settsSheet" class="modal full">
+  <div class="full-scroll">
+    <h3>Settings</h3>
+    <div class="note" style="margin-top:2px">Saved on this phone. They take effect straight away.</div>
+    <div id="settsList"></div>
+    <div class="note" style="margin-top:16px">Everything here is a preference, not a rule — you can change any of it mid-run.</div>
+    <button class="btn btn-ghost" style="margin-top:10px" id="settsReset">Put all settings back to normal</button>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-amber" id="settsClose">Done</button>
   </div>
 </div>
 
@@ -599,7 +633,8 @@ function renderHistoryNote(){
   const nPairs = Object.keys(historyStore.adjacency).length;
   $("historyNote").textContent = nRuns
     ? "Learned from " + nRuns + " saved run" + (nRuns===1?"":"s") + " \u00B7 " + nPairs +
-      " address pairing" + (nPairs===1?"":"s") + " noticed so far."
+      " address pairing" + (nPairs===1?"":"s") + " noticed so far." +
+      (prefs.useHistory ? "" : " Turned off in Settings right now.")
     : "No runs saved yet. Save one when you start a new run and this starts learning your usual pairings.";
 }
 
@@ -616,7 +651,6 @@ function save(){
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
       stops, nextId, optOrder, view, mode, depotPt, doneCounter, runStartedAt,
-      useHistory: $("useHistory").checked,
       depot: $("depot").value, saved: Date.now()
     }));
   } catch(e){ storageOk = false; showSaveFlag(); }
@@ -637,7 +671,6 @@ function load(){
   depotPt = d.depotPt || null;
   doneCounter = d.doneCounter || 0;
   runStartedAt = d.runStartedAt || null;
-  $("useHistory").checked = d.useHistory !== false;
   if (d.depot) $("depot").value = d.depot;
 
   document.querySelectorAll(".mode").forEach(b => b.classList.toggle("on", b.getAttribute("data-mode") === mode));
@@ -979,6 +1012,85 @@ function setToggle(id, on, label){
   return !!on;
 }
 
+/* ==========================================================
+   Preferences
+
+   Two drivers doing the same job want opposite things. One loads the van in
+   one long burst and does not want to be interrupted; another knows his patch
+   well and wants to see each parcel land on the map before he places it in
+   the van. Neither is wrong, so it is a setting rather than a decision baked
+   into the app.
+
+   Everything lives in one key. The map buttons still work as before — they
+   write through to here, so the buttons and the settings screen can never
+   disagree.
+   ========================================================== */
+const PREFS_KEY = "addressScannerWithMaps.prefs.v1";
+const PREF_DEFAULTS = {
+  scanFlow: "check",      // check = show the card after each scan | through = keep scanning
+  autoCamera: false,      // open the camera as soon as the app starts
+  buzz: true,             // a short buzz on a good scan
+  keepAwake: true,        // hold the screen on while the camera is running
+  mapLabels: true,        // addresses written beside the pins
+  fitDepot: false,        // include the depot when fitting the map
+  useHistory: true,       // let past runs nudge the suggested order
+  confirmRemove: true     // ask twice before dropping a stop
+};
+let prefs = Object.assign({}, PREF_DEFAULTS);
+
+function loadPrefs(){
+  let stored = null;
+  try{
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) stored = JSON.parse(raw);
+  } catch(e){}
+  if (stored && typeof stored === "object"){
+    Object.keys(PREF_DEFAULTS).forEach(k => {
+      if (stored[k] !== undefined && typeof stored[k] === typeof PREF_DEFAULTS[k]) prefs[k] = stored[k];
+    });
+  } else {
+    /* first run on a phone that has been using the app already: carry the
+       old one-off keys across so nothing he set gets quietly reset */
+    try{
+      const lab = localStorage.getItem("addressScannerWithMaps.labels");
+      if (lab !== null) prefs.mapLabels = lab !== "0";
+      const fd = localStorage.getItem("addressScannerWithMaps.fitDepot");
+      if (fd !== null) prefs.fitDepot = fd === "1";
+      const run = localStorage.getItem(STORE_KEY);
+      if (run){
+        const d = JSON.parse(run);
+        if (d && d.useHistory !== undefined) prefs.useHistory = d.useHistory !== false;
+      }
+    } catch(e){}
+  }
+  if (prefs.scanFlow !== "through") prefs.scanFlow = "check";
+  showLabels = prefs.mapLabels;
+  fitDepot = prefs.fitDepot;
+}
+
+function savePrefs(){
+  try{ localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch(e){}
+}
+
+function setPref(key, value){
+  if (!(key in PREF_DEFAULTS)) return prefs[key];
+  prefs[key] = value;
+  savePrefs();
+  applyPrefs();
+  return prefs[key];
+}
+
+/* the one place that pushes preferences out to the rest of the app */
+function applyPrefs(){
+  showLabels = prefs.mapLabels;
+  fitDepot = prefs.fitDepot;
+  setToggle("btnLabels", showLabels, showLabels ? "Labels on" : "Labels");
+  setToggle("btnFitDepot", fitDepot, fitDepot ? "Depot in" : "+ Depot");
+  renderPrefRows();
+  if (mapReady){ drawMap(); }
+  if (cardOpen()){ revLayerKey = ""; drawReveal(); }
+}
+
 /* ================= Scan feedback ================= */
 function flashStrip(kind, msg){
   const strip = $("scanStrip");
@@ -986,11 +1098,14 @@ function flashStrip(kind, msg){
   void strip.offsetWidth;
   if (kind) strip.classList.add(kind);
   $("scanMsg").textContent = msg;
-  if (kind === "hit" && navigator.vibrate) navigator.vibrate(60);
+  if (kind === "hit" && prefs.buzz && navigator.vibrate) navigator.vibrate(60);
   if (kind) setTimeout(()=>strip.classList.remove("hit","dup"), 900);
 }
 
 function onScan(text){
+  /* while he is looking at the last one, a label drifting into frame must not
+     quietly add a stop behind the card */
+  if (cardOpen()) return;
   const now = Date.now();
   if (text === lastScanText && now - lastScanAt < 3500) return;
   lastScanText = text; lastScanAt = now;
@@ -1001,7 +1116,7 @@ function onScan(text){
   if (p.street){
     const s = addStop(p);
     flashStrip("hit","Parcel " + s.parcel + ": " + s.street);
-    openReveal(s);
+    if (prefs.scanFlow === "check") openReveal(s);
   } else {
     pendingStop = p;
     openSheet(null, p, "Scan needs a street");
@@ -1078,6 +1193,27 @@ function scannerOptions(){
   return opts;
 }
 
+/* holding the screen on between parcels, released the moment the camera stops
+   so it can never sit there draining the battery */
+let wakeLock = null;
+
+async function holdScreen(on){
+  try{
+    if (on){
+      if (!prefs.keepAwake || wakeLock || !navigator.wakeLock) return;
+      wakeLock = await navigator.wakeLock.request("screen");
+      if (wakeLock && wakeLock.addEventListener) wakeLock.addEventListener("release", ()=>{ wakeLock = null; });
+    } else if (wakeLock){
+      const w = wakeLock; wakeLock = null;
+      if (w.release) await w.release();
+    }
+  } catch(e){ wakeLock = null; }
+}
+
+document.addEventListener("visibilitychange", ()=>{
+  if (document.visibilityState === "visible" && scanning) holdScreen(true);
+});
+
 async function offerTorch(){
   $("btnTorch").style.display = "none";
   torchOn = false;
@@ -1129,6 +1265,7 @@ async function startScanner(){
     $("scanMsg").textContent = "Scanning — fill the box with the QR code";
     $("ocrRow").style.display = "flex";
     ocrSay("If the QR will not read, point at the printed address and tap Read the address instead.");
+    holdScreen(true);
     offerTorch();
   } catch(err){ handleCamError(err); }
 }
@@ -1136,6 +1273,7 @@ async function startScanner(){
 function stopScanner(){
   if (scanner){ scanner.stop().catch(()=>{}); scanner = null; }
   scanning = false; torchOn = false;
+  holdScreen(false);
   $("reader").style.display = "none";
   $("btnTorch").style.display = "none";
   $("ocrRow").style.display = "none";
@@ -2233,7 +2371,28 @@ document.addEventListener("click", e => {
   else if (go){ navigateTo(byId(go)); }
   else if (dn){ const s = byId(dn); if (s){ s.done = true; s.doneSeq = ++doneCounter; s.doneAt = Date.now(); if (map) map.closePopup(); render(); } }
   else if (ed){ openSheetById(+ed); }
-  else if (dl){ stops = stops.filter(s => s.id !== +dl); render(); }
+  else if (dl){
+    /* an accidental brush of the X used to lose a parcel outright, so the
+       button asks once. It disarms itself if he does not follow through. */
+    if (prefs.confirmRemove && t.getAttribute("data-armed") !== "1"){
+      t.setAttribute("data-armed", "1");
+      t.textContent = "Sure?";
+      t.classList.add("arm");
+      setTimeout(()=>{
+        if (t && t.getAttribute("data-armed") === "1"){
+          t.removeAttribute("data-armed");
+          t.textContent = "\u2715";
+          t.classList.remove("arm");
+        }
+      }, 3000);
+      return;
+    }
+    const s = byId(dl);
+    stops = stops.filter(x => x.id !== +dl);
+    optOrder = null; view = "scan";
+    render();
+    if (s) flashStrip("dup", "Removed " + s.street);
+  }
   else if (un){ const s = byId(un); if (s){ s.done = false; delete s.doneSeq; delete s.doneAt; if (s.geoState==="queued") runGeoQueue(); render(); } }
   else if (st){
     sortDone[st] = !sortDone[st];
@@ -2272,10 +2431,9 @@ $("btnMe").addEventListener("click", ()=>{
 });
 $("btnAll").addEventListener("click", ()=>{ initMap(); setFollow(false); fitAll(true); });
 $("btnLabels").addEventListener("click", ()=>{
-  showLabels = !showLabels;
-  setToggle("btnLabels", showLabels, showLabels ? "Labels on" : "Labels");
-  try{ localStorage.setItem("addressScannerWithMaps.labels", showLabels ? "1" : "0"); } catch(e){}
-  drawMap(); drawReveal();
+  setPref("mapLabels", !prefs.mapLabels);
+  drawMap();
+  revLayerKey = ""; drawReveal();
 });
 /* ---- drag the bar above a map to resize it, remembered between runs ---- */
 function makeResizer(grabId, targetId, storeKey, minPx, onDone){
@@ -2309,9 +2467,7 @@ function makeResizer(grabId, targetId, storeKey, minPx, onDone){
 }
 
 $("btnFitDepot").addEventListener("click", ()=>{
-  fitDepot = !fitDepot;
-  setToggle("btnFitDepot", fitDepot, fitDepot ? "Depot in" : "+ Depot");
-  try{ localStorage.setItem("addressScannerWithMaps.fitDepot", fitDepot ? "1" : "0"); } catch(e){}
+  setPref("fitDepot", !prefs.fitDepot);
   initMap(); setFollow(false); fitAll(true);
   flashStrip("hit", fitDepot ? "Fitting the stops and the depot" : "Fitting the stops only");
 });
@@ -2450,7 +2606,7 @@ $("btnOptimise").addEventListener("click", async () => {
         baseCost = (i,j) => haversine(pts[i], pts[j]);
       }
     }
-    const useHist = $("useHistory").checked;
+    const useHist = prefs.useHistory;
     const keyOf = p => p.street ? addrKey(p) : null;
     const cost = !useHist ? baseCost : (i,j) => baseCost(i,j) * adjacencyFactor(keyOf(pts[i]), keyOf(pts[j]));
     const order = solve(list.length, cost, endIdx);
@@ -3043,6 +3199,107 @@ $("btnManAdd").addEventListener("click", ()=>{
   openReveal(s);
 });
 
+/* ---- the settings screen, built from one spec so a new preference is a
+        single line here rather than markup, styling and a handler ---- */
+const PREF_UI = [
+  { group: "Scanning" },
+  { key:"scanFlow", type:"choice", label:"After each scan",
+    options:[
+      ["check",  "Check it on the map", "The stop card opens so you can see where it landed, fix the address or move the pin, then carry on."],
+      ["through","Keep scanning",       "No card. The strip tells you what was read and the camera stays on it, so you can work straight through a load."]
+    ] },
+  { key:"autoCamera", type:"switch", label:"Open the camera on startup",
+    note:"Only if you have already allowed the camera on this phone — it will never ask you for permission out of the blue." },
+  { key:"buzz", type:"switch", label:"Buzz on a good scan",
+    note:"A short vibration so you know it read without having to look." },
+  { key:"keepAwake", type:"switch", label:"Hold the screen on while scanning",
+    note:"Stops the phone locking between parcels. Releases as soon as you stop the camera." },
+
+  { group: "Map" },
+  { key:"mapLabels", type:"switch", label:"Addresses beside the pins",
+    note:"Turn off if the map gets too crowded on a dense run." },
+  { key:"fitDepot", type:"switch", label:"Include the depot when fitting the map",
+    note:"Off means the map zooms as far in as it can on the parcels alone." },
+
+  { group: "The run" },
+  { key:"useHistory", type:"switch", label:"Learn from past runs",
+    note:"Pairs of addresses you have delivered back to back get a small discount when suggesting an order. Capped, so it can never beat real distance." },
+  { key:"confirmRemove", type:"switch", label:"Ask before removing a stop",
+    note:"The ✕ on a stop asks once more before it goes." }
+];
+
+function renderPrefRows(){
+  const box = $("settsList");
+  if (!box) return;
+  box.innerHTML = "";
+  PREF_UI.forEach(item => {
+    if (item.group){
+      const g = document.createElement("div");
+      g.className = "setgroup";
+      g.textContent = item.group;
+      box.appendChild(g);
+      return;
+    }
+    if (item.type === "choice"){
+      const wrap = document.createElement("div");
+      wrap.className = "setchoice";
+      wrap.innerHTML = "<b>" + esc(item.label) + "</b>";
+      const row = document.createElement("div");
+      row.className = "choice";
+      item.options.forEach(([val, title, note]) => {
+        const b = document.createElement("button");
+        b.className = prefs[item.key] === val ? "on" : "";
+        b.setAttribute("data-pref", item.key);
+        b.setAttribute("data-val", val);
+        b.innerHTML = "<b>" + esc(title) + "</b>" + esc(note || "");
+        row.appendChild(b);
+      });
+      wrap.appendChild(row);
+      box.appendChild(wrap);
+      return;
+    }
+    const row = document.createElement("div");
+    row.className = "setrow";
+    row.innerHTML = '<div class="sl"><b>' + esc(item.label) + '</b>' +
+      (item.note ? '<span>' + esc(item.note) + '</span>' : '') + '</div>' +
+      '<button class="swi' + (prefs[item.key] ? " on" : "") + '" role="switch" ' +
+      'aria-checked="' + (prefs[item.key] ? "true" : "false") + '" ' +
+      'aria-label="' + esc(item.label) + '" data-pref="' + item.key + '"></button>';
+    box.appendChild(row);
+  });
+}
+
+$("settsList").addEventListener("click", e => {
+  const b = e.target && e.target.closest ? e.target.closest("[data-pref]") : null;
+  if (!b) return;
+  const key = b.getAttribute("data-pref");
+  const val = b.getAttribute("data-val");
+  setPref(key, val === null ? !prefs[key] : val);
+});
+
+function openSettings(){
+  renderPrefRows();
+  $("settsBack").style.display = "block";
+  $("settsSheet").style.display = "block";
+  setToggle("btnSettings", true, "Settings");
+}
+function closeSettings(){
+  $("settsBack").style.display = "none";
+  $("settsSheet").style.display = "none";
+  setToggle("btnSettings", false, "Settings");
+}
+$("btnSettings").addEventListener("click", ()=>{
+  if ($("settsSheet").style.display === "block") closeSettings(); else openSettings();
+});
+$("settsClose").addEventListener("click", closeSettings);
+$("settsBack").addEventListener("click", closeSettings);
+$("settsReset").addEventListener("click", ()=>{
+  prefs = Object.assign({}, PREF_DEFAULTS);
+  savePrefs();
+  applyPrefs();
+  flashStrip("hit", "Settings put back to normal");
+});
+
 /* ================= Misc ================= */
 function offerNewRun(resetAll){
   if (!stops.length){ wipe(resetAll); return; }
@@ -3113,7 +3370,10 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, edFields, setToggle, openCard, commitCard, closeCard, showManual, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
+  makeResizer, edFields, setToggle, loadPrefs, savePrefs, setPref, applyPrefs,
+  renderPrefRows, openSettings, closeSettings, holdScreen, maybeAutoCamera,
+  PREF_DEFAULTS, PREF_UI, PREFS_KEY,
+  get prefs(){ return prefs; }, set prefs(v){ prefs = v; }, openCard, commitCard, closeCard, showManual, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
   historyCsv, historyRows, historyBackup, importBackup, rebuildAdjacency, currentRunEntry,
   csvCell, fmtDateTime, fmtDate, fmtTime, runRows, openRuns, closeRuns, renderRunList,
   CSV_COLUMNS,
@@ -3136,27 +3396,38 @@ load();
 loadHistoryStore();
 renderHistoryNote();
 renderStoreNote();
-try{ showLabels = localStorage.getItem("addressScannerWithMaps.labels") !== "0"; } catch(e){}
-try{ fitDepot = localStorage.getItem("addressScannerWithMaps.fitDepot") === "1"; } catch(e){}
-setToggle("btnLabels", showLabels, showLabels ? "Labels on" : "Labels");
-setToggle("btnFitDepot", fitDepot, fitDepot ? "Depot in" : "+ Depot");
+loadPrefs();
+applyPrefs();
 
 /* ---- which build is actually loaded ----
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-01.6";
+const APP_VERSION = "2026-08-02.1";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
   location.replace(base + "?v=" + Date.now());
 });
 
+/* opening the camera on startup is only ever attempted when this phone has
+   already granted permission — it must never throw a permission prompt at him
+   the moment the app loads */
+async function maybeAutoCamera(){
+  if (!prefs.autoCamera || scanning) return;
+  try{
+    if (!navigator.permissions || !navigator.permissions.query) return;
+    const st = await navigator.permissions.query({ name:"camera" });
+    if (!st || st.state !== "granted") return;
+  } catch(e){ return; }
+  startScanner();
+}
+
 makeResizer("mapGrab", "map", "addressScannerWithMaps.mapH", 240, ()=>{ if (map) map.invalidateSize(); });
-$("useHistory").addEventListener("change", save);
 render();
 startWatch();
 runGeoQueue();
+maybeAutoCamera();
 </script>
 </body>
 </html>
