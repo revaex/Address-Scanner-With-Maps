@@ -1900,6 +1900,13 @@ let revUserMoved = false, revProg = 0, revFitKey = "", revLayerKey = "";
 let cardMode = "scanned";                       // scanned | edit | confirm
 let edSuburbVal = "", edPostcodeVal = "", edOpenStreet = "";
 
+/* The pending position for the stop on the card. Nothing is written to the
+   stop itself until he taps the primary button, so these hold it in the
+   meantime. edPinSource: existing (came off the stop) | suggest (picked from
+   the list) | user (dragged or tapped, becomes pinned) | cleared (he undid his
+   pin, so a late lookup must not put it back). */
+let edPin = null, edPinSource = "", edPinPrecision = "";
+
 function cardOpen(){ return $("reveal").classList.contains("on"); }
 
 function edWhereSay(){
@@ -3665,7 +3672,7 @@ refreshExample();
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-02.8";
+const APP_VERSION = "2026-08-02.9";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
