@@ -86,7 +86,12 @@
   }
   .tog.on:after{content:"\2715";font-size:11px;background:rgba(0,0,0,.22);color:inherit}
   .btn-ghost.tog.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
-  .btn-amber.tog.on{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  /* the main action still stands out when it is off, but it fills in when it is
+     on like every other toggle — it used to do the exact opposite */
+  .btn-lead{background:var(--panel-2);color:var(--amber);border:1.5px solid var(--amber)}
+  .btn-lead.tog.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+  .btn-lead.tog:after{background:rgba(255,179,0,.18);color:var(--amber)}
+  .btn-lead.tog.on:after{background:rgba(0,0,0,.22);color:inherit}
   .mini.tog{gap:5px}
   .mini.tog:after{width:15px;height:15px;font-size:12px}
   .mini.edit.tog.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
@@ -126,6 +131,7 @@
   .stop .flag{font-size:12px;font-weight:700;margin-top:3px}
   .flag.warn{color:var(--red)} .flag.wait{color:var(--ink-dim)} .flag.twin{color:var(--blue)}
   .flag.rough{color:var(--amber)} .flag.pinned{color:var(--green)}
+  .flag.source{color:var(--ink-dim);font-weight:600;font-size:11.5px;letter-spacing:.02em;margin-top:4px}
   .stop .acts{display:flex;flex-direction:column;gap:5px;flex:none}
   .mini{padding:7px 11px;font-size:13px;border-radius:9px}
   .mini.go{background:var(--amber);color:var(--amber-ink)}
@@ -342,7 +348,7 @@
   <div id="reader"></div>
 
   <div class="btn-row" style="margin-bottom:12px">
-    <button class="btn btn-amber tog" id="btnScan">Start scanning</button>
+    <button class="btn btn-lead tog" id="btnScan">Start scanning</button>
     <button class="btn btn-ghost tog" id="btnTorch" style="display:none;flex:0 0 92px">Light</button>
     <button class="btn btn-ghost tog" id="btnManual">Add by hand</button>
   </div>
@@ -1070,7 +1076,8 @@ const PREF_DEFAULTS = {
   mapLabels: true,        // addresses written beside the pins
   fitDepot: false,        // include the depot when fitting the map
   useHistory: true,       // let past runs nudge the suggested order
-  confirmRemove: true     // ask twice before dropping a stop
+  confirmRemove: true,    // ask twice before dropping a stop
+  pinUpdatesAddress: true // moving a pin re-reads the address at the new spot
 };
 let prefs = Object.assign({}, PREF_DEFAULTS);
 
@@ -1159,7 +1166,7 @@ function onScan(text){
   const twin = sameParcel(p);
   if (twin){ flashStrip("dup","Already scanned: " + (p.street || p.suburb)); return; }
   if (p.street){
-    const s = addStop(p);
+    const s = addStop(Object.assign({}, p, { source:"scan" }));
     flashStrip("hit","Parcel " + s.parcel + ": " + s.street);
     afterAdd(s);
   } else {
@@ -1419,6 +1426,23 @@ $("fileInput").addEventListener("change", async e => {
 function tidy(s){ return titleCase(String(s||"").trim()); }
 function stopLabel(s){ return [s.street,s.suburb,s.postcode].filter(Boolean).join(", "); }
 
+/* how this stop came to be on the run, in plain words, so months later a
+   record makes sense to whoever reads it */
+const SOURCE_WORDS = {
+  scan:   "Scanned from the label",
+  ocr:    "Read off the printed label",
+  photo:  "Scanned from a photo",
+  manual: "Added by hand",
+  map:    "Dropped on the map"
+};
+function sourceLine(s){
+  const bits = [SOURCE_WORDS[s.source] || SOURCE_WORDS.manual];
+  if (s.pinned) bits.push("pin placed by you");
+  else if (s.geoState === "ok" && s.geoPrecision === "approx") bits.push("rough spot, check the pin");
+  if (s.done) bits.push("delivered" + (s.doneAt ? " " + fmtTime(s.doneAt) : ""));
+  return bits.join(" \u00B7 ");
+}
+
 function addStop(p){
   const twin = twinCount(tidy(p.street), tidy(p.suburb)) > 0;
   /* parcel number is the physical position in the van, so it must keep
@@ -1432,7 +1456,7 @@ function addStop(p){
     street: tidy(p.street), suburb: tidy(p.suburb), postcode: p.postcode||"",
     receiver: p.receiver||"", company: p.company||"", phone: p.phone||"",
     con: p.con||"", article: p.article||"", unitType: p.unitType||"",
-    twin,
+    twin, source: p.source || "manual",
     lat: hasPt ? p.lat : null, lng: hasPt ? p.lng : null,
     geoState: hasPt ? "ok" : "queued",
     geoPrecision: hasPt ? (p.precision || "approx") : "",
@@ -1939,6 +1963,8 @@ function closeReveal(){ closeCard(); }
 function closeSheet(){ closeCard(); }
 
 /* moving the pin, from a drag or a tap on the map */
+let edReadSeq = 0;
+
 function setEdPin(lat, lng, source){
   if (!cardOpen()) return;
   edPin = { lat, lng };
@@ -1950,6 +1976,27 @@ function setEdPin(lat, lng, source){
   edWhereSay();
   revLayerKey = "";
   drawReveal();
+  if (source === "user" && prefs.pinUpdatesAddress) readAddressUnderPin(lat, lng);
+}
+
+/* nothing is committed to the stop from here — it only fills the box, so he
+   can still see it and change it before saving */
+async function readAddressUnderPin(lat, lng){
+  const seq = ++edReadSeq;
+  const box = $("edStreet");
+  const was = box.value;
+  let found = null;
+  try{ found = await reverseLookup(lat, lng); } catch(e){}
+  if (seq !== edReadSeq || !cardOpen()) return;          // he moved it again
+  if (found && found.street){
+    box.value = found.street;
+    edOpenStreet = found.street;
+    if (found.suburb) edSuburbVal = found.suburb;
+    if (found.postcode) edPostcodeVal = found.postcode;
+  } else if (!was){
+    edOpenStreet = "";
+  }
+  edWhereSay();
 }
 
 $("edUnpin").addEventListener("click", ()=>{
@@ -2004,6 +2051,7 @@ function commitCard(){
     : {};
   closeCard();
   const s = addStop(Object.assign({ street:f.street, suburb:f.suburb, postcode:f.postcode,
+    source: p.source || (pendingStop ? "ocr" : "manual"),
     con:p.con||"", article:p.article||"", receiver:p.receiver||"", company:p.company||"", phone:p.phone||"" }, extra));
   afterAdd(s);
   return true;
@@ -2166,6 +2214,7 @@ function render(){
     else if (s.pinned) flag = '<div class="flag pinned">Pin placed by you</div>';
     else if (s.geoPrecision === "approx") flag = '<div class="flag rough">Rough spot — check the pin</div>';
     if (s.twin) flag += '<div class="flag twin">Another parcel for this address</div>';
+    flag += '<div class="flag source">' + esc(sourceLine(s)) + '</div>';
     const who = [s.receiver, s.company].filter(Boolean).join(" \u00B7 ");
     li.innerHTML =
       '<div class="seq"><div class="num">'+(i+1)+'</div>' +
@@ -2395,6 +2444,7 @@ async function addStopAt(lat, lng){
   try{ found = await reverseLookup(lat, lng); } catch(e){}
   const named = !!(found && found.street);
   const s = addStop({
+    source: "map",
     street: named ? found.street : "Dropped pin",
     suburb: (found && found.suburb) || "",
     postcode: (found && found.postcode) || "",
@@ -2445,14 +2495,34 @@ function startPlacing(id){
   render();
 }
 
-function dropPlacedPin(lat, lng){
+async function dropPlacedPin(lat, lng){
   const s = byId(placing);
   if (!s) return;
   s.lat = lat; s.lng = lng; s.pinned = true; s.geoState = "ok"; s.geoPrecision = "exact";
   mapUserMoved = true;
+  const was = s.street;
   render();
-  flashStrip("hit", "Pin moved for " + s.street);
   stopPlacing();
+  if (!prefs.pinUpdatesAddress){
+    flashStrip("hit", "Pin moved, address kept: " + was);
+    return;
+  }
+  /* he pointed at a place, so read back what is actually there — but if
+     nothing can be read, keep the address he already had rather than
+     blanking a stop he still has to deliver */
+  flashStrip("hit", "Pin moved, reading the address...");
+  let found = null;
+  try{ found = await reverseLookup(lat, lng); } catch(e){}
+  if (found && found.street){
+    s.street = tidy(found.street);
+    if (found.suburb) s.suburb = tidy(found.suburb);
+    if (found.postcode) s.postcode = found.postcode;
+    optOrder = null; view = "scan";
+    render();
+    flashStrip("hit", "Now " + s.street);
+  } else {
+    flashStrip("dup", "Nothing found there, kept " + was);
+  }
 }
 
 function stopPlacing(){
@@ -2480,7 +2550,11 @@ function navigateTo(s){
 function byId(id){ return stops.find(s => s.id === +id); }
 
 document.addEventListener("click", e => {
-  const t = e.target;
+  /* closest, not the raw target: a tap can land on a node inside the button
+     and then nothing happened at all, which looked like a dead button */
+  const t = (e.target && e.target.closest)
+    ? e.target.closest("[data-go],[data-done],[data-edit],[data-del],[data-undo],[data-step],[data-place]")
+    : e.target;
   if (!t || !t.getAttribute) return;
   const go = t.getAttribute("data-go");
   const dn = t.getAttribute("data-done");
@@ -2991,6 +3065,7 @@ async function readAddressNow(source){
   ocrSay("Read: " + p.street + ". Check it before adding.");
   flashStrip("hit", "Read: " + p.street);
   /* never added straight from OCR — he confirms first */
+  p.source = "ocr";
   pendingStop = p;
   openSheet(null, p, "Check what was read");
 }
@@ -3307,6 +3382,7 @@ $("btnManAdd").addEventListener("click", ()=>{
   const street = $("manStreet").value.trim();
   if (!street){ $("manStreet").focus(); return; }
   const p = { street, suburb:$("manSuburb").value.trim(), postcode:$("manPostcode").value.trim(),
+    source: "manual",
     con:(pendingStop&&pendingStop.con)||"", article:(pendingStop&&pendingStop.article)||"",
     receiver:(pendingStop&&pendingStop.receiver)||"" };
   /* if he picked it out of the search list it is already placed, so skip the
@@ -3351,7 +3427,9 @@ const PREF_UI = [
   { key:"useHistory", type:"switch", label:"Learn from past runs",
     note:"Pairs of addresses you have delivered back to back get a small discount when suggesting an order. Capped, so it can never beat real distance." },
   { key:"confirmRemove", type:"switch", label:"Ask before removing a stop",
-    note:"The ✕ on a stop asks once more before it goes." }
+    note:"The ✕ on a stop asks once more before it goes." },
+  { key:"pinUpdatesAddress", type:"switch", label:"Moving a pin updates the address",
+    note:"Drop a pin somewhere and the address is re-read from that spot. Turn this off when the address on the label is right and only the position is wrong — the pin moves and the address is left exactly as it is." }
 ];
 
 function renderPrefRows(){
@@ -3496,7 +3574,7 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, edFields, setToggle, fitDock, focusStop, centreOnFocus, showMapTab, afterAdd,
+  makeResizer, edFields, setToggle, fitDock, sourceLine, readAddressUnderPin, SOURCE_WORDS, focusStop, centreOnFocus, showMapTab, afterAdd,
   get focusStopId(){ return focusStopId; }, set focusStopId(v){ focusStopId = v; }, anExample, refreshExample, EXAMPLE_ADDRESSES, nextGeoStop, cardStartPoint, waitingOnGeo, loadPrefs, savePrefs, setPref, applyPrefs,
   renderPrefRows, openSettings, closeSettings, holdScreen, maybeAutoCamera,
   PREF_DEFAULTS, PREF_UI, PREFS_KEY,
@@ -3531,7 +3609,7 @@ refreshExample();
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-02.6";
+const APP_VERSION = "2026-08-02.7";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
@@ -3562,10 +3640,13 @@ function fitDock(){
     document.body.style.paddingBottom = "0px";
     return 0;
   }
-  const h = dock.offsetHeight || 0;
+  /* getBoundingClientRect keeps the fractional part; offsetHeight rounds down
+     and the missing pixel or two was enough to shave the buttons */
+  const rect = dock.getBoundingClientRect ? dock.getBoundingClientRect() : null;
+  const h = Math.ceil((rect && rect.height) || dock.offsetHeight || 0);
   /* if the height cannot be measured, hand back to the stylesheet rather than
      leaving the page with no clearance at all */
-  document.body.style.paddingBottom = h ? (h + 20) + "px" : "";
+  document.body.style.paddingBottom = h ? (h + 28) + "px" : "";
   return h;
 }
 
@@ -3578,6 +3659,9 @@ if (window.ResizeObserver){
 makeResizer("mapGrab", "map", "addressScannerWithMaps.mapH", 240, ()=>{ if (map) map.invalidateSize(); });
 render();
 fitDock();
+/* fonts and the phone's own chrome settle after first paint, so measure again */
+setTimeout(fitDock, 300);
+window.addEventListener("load", ()=> setTimeout(fitDock, 100));
 startWatch();
 runGeoQueue();
 maybeAutoCamera();
