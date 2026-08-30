@@ -156,7 +156,6 @@
     box-shadow:0 1px 4px rgba(0,0,0,.5);
   }
   .stoplabel:before{display:none}
-  .stoplabel b{color:var(--amber)}
   .stoplabel.done{opacity:.55}
   .grabber{display:flex;align-items:center;justify-content:center;height:22px;cursor:ns-resize;touch-action:none}
   .grabber i{display:block;width:52px;height:5px;border-radius:3px;background:var(--line)}
@@ -2075,7 +2074,7 @@ function drawReveal(){
       html:'<div class="pin dim"><span>'+s.parcel+'</span></div>' });
     const m = L.marker([s.lat,s.lng], { icon }).addTo(revLayer);
     if (showLabels){
-      m.bindTooltip(stopTip(s, s.parcel), { permanent:true, direction:"right",
+      m.bindTooltip(stopTip(s), { permanent:true, direction:"right",
         offset:[12,-12], className:"stoplabel", opacity:1 });
     }
   });
@@ -2287,8 +2286,10 @@ function initMap(){
   mapReady = true;
 }
 
-function stopTip(s, n){
-  return '<b>' + n + '</b> ' + esc(s.street || "(no street)");
+/* Address only. The number lives on the pin right beside this, and having it
+   twice made the label longer for no gain. */
+function stopTip(s){
+  return esc(s.street || "(no street)");
 }
 
 /* When he is loading the van he only cares about the parcels, so the default
@@ -2328,7 +2329,7 @@ function drawMap(){
     });
     const m = L.marker([s.lat,s.lng], { icon }).addTo(markerLayer);
     if (showLabels){
-      m.bindTooltip(stopTip(s, i+1), { permanent:true, direction:"right", offset:[12,-12],
+      m.bindTooltip(stopTip(s), { permanent:true, direction:"right", offset:[12,-12],
         className:"stoplabel", opacity:1 });
     }
     m.bindPopup(
@@ -3530,7 +3531,7 @@ refreshExample();
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-02.5";
+const APP_VERSION = "2026-08-02.6";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
