@@ -21,7 +21,7 @@
   body{
     background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    font-size:16px;line-height:1.45;padding-bottom:104px;
+    font-size:16px;line-height:1.45;padding-bottom:calc(132px + env(safe-area-inset-bottom));
   }
   .wrap{max-width:600px;margin:0 auto;padding:14px 14px 0}
 
@@ -263,7 +263,7 @@
   #banner .txt{flex:1;line-height:1.35}
   #banner .txt b{color:var(--amber)}
   #banner button{padding:8px 12px;font-size:13px;border-radius:9px;background:transparent;color:var(--ink-dim);border:1px solid var(--line)}
-  .footer{text-align:center;padding:4px 0 10px}
+  .footer{text-align:center;padding:6px 0 18px}
   .verline{margin-top:8px;font-size:11.5px;color:var(--ink-dim);letter-spacing:.04em}
   .verline b{color:var(--ink)}
   .verline button{padding:5px 10px;font-size:11px;margin-left:6px}
@@ -708,6 +708,7 @@ function showSaveFlag(){
 function wipe(all){
   stops = []; optOrder = null; view = "scan"; nextId = 1; sortDone = {};
   runStartedAt = null;
+  focusStopId = null; focusCentred = false;
   mapUserMoved = false; fittedOnce = false; lastFitKey = ""; placing = null;
   document.body.classList.remove("placing");
   if (adding) stopAdding();
@@ -1030,9 +1031,40 @@ function setToggle(id, on, label){
    write through to here, so the buttons and the settings screen can never
    disagree.
    ========================================================== */
+/* The example in an empty address box is the only hint most people read about
+   what they are allowed to type, so it rotates through deliberately different
+   shapes — with a unit, without, short form, long form, with and without a
+   suburb. Streets are real ones on his round; the numbers are made up. */
+const EXAMPLE_ADDRESSES = [
+  { street:"14 Rosstown Rd",        suburb:"Carnegie",    postcode:"3163" },
+  { street:"2/57 Neerim Rd",        suburb:"Murrumbeena", postcode:"3163" },
+  { street:"U 4 33 Koornang Rd",    suburb:"Carnegie",    postcode:"3163" },
+  { street:"8A Truganini Rd",       suburb:"Carnegie",    postcode:"3163" },
+  { street:"Unit 7, 12 Oakleigh Rd",suburb:"Carnegie",    postcode:"3166" },
+  { street:"1194 Glen Huntly Rd",   suburb:"Glen Huntly", postcode:"3163" },
+  { street:"5/210 Murrumbeena Rd",  suburb:"Murrumbeena", postcode:"3163" },
+  { street:"36 Emily St",           suburb:"Carnegie",    postcode:"3163" }
+];
+
+function anExample(){
+  return EXAMPLE_ADDRESSES[Math.floor(Math.random() * EXAMPLE_ADDRESSES.length)];
+}
+
+/* a fresh example every time the box comes up empty */
+function refreshExample(){
+  const ex = anExample();
+  const street = $("manStreet"), suburb = $("manSuburb"), postcode = $("manPostcode");
+  if (street) street.placeholder = ex.street;
+  if (suburb) suburb.placeholder = ex.suburb;
+  if (postcode) postcode.placeholder = ex.postcode;
+  const ed = $("edStreet");
+  if (ed) ed.placeholder = ex.street + ", or drag the pin";
+  return ex;
+}
+
 const PREFS_KEY = "addressScannerWithMaps.prefs.v1";
 const PREF_DEFAULTS = {
-  scanFlow: "check",      // check = show the card after each scan | through = keep scanning
+  scanFlow: "map",        // map = jump to the map | check = open the stop card | through = keep scanning
   autoCamera: false,      // open the camera as soon as the app starts
   buzz: true,             // a short buzz on a good scan
   keepAwake: true,        // hold the screen on while the camera is running
@@ -1068,7 +1100,7 @@ function loadPrefs(){
       }
     } catch(e){}
   }
-  if (prefs.scanFlow !== "through") prefs.scanFlow = "check";
+  if (["check","map","through"].indexOf(prefs.scanFlow) === -1) prefs.scanFlow = PREF_DEFAULTS.scanFlow;
   showLabels = prefs.mapLabels;
   fitDepot = prefs.fitDepot;
 }
@@ -1107,6 +1139,15 @@ function flashStrip(kind, msg){
   if (kind) setTimeout(()=>strip.classList.remove("hit","dup"), 900);
 }
 
+/* What happens the moment a parcel is on the run. Three ways of working, and
+   the driver picks: look it over on the card, jump down to the map, or nothing
+   at all so he can keep scanning. */
+function afterAdd(s){
+  if (!s) return;
+  if (prefs.scanFlow === "check") openReveal(s);
+  else if (prefs.scanFlow === "map") focusStop(s);
+}
+
 function onScan(text){
   /* while he is looking at the last one, a label drifting into frame must not
      quietly add a stop behind the card */
@@ -1121,7 +1162,7 @@ function onScan(text){
   if (p.street){
     const s = addStop(p);
     flashStrip("hit","Parcel " + s.parcel + ": " + s.street);
-    if (prefs.scanFlow === "check") openReveal(s);
+    afterAdd(s);
   } else {
     pendingStop = p;
     openSheet(null, p, "Scan needs a street");
@@ -1627,6 +1668,10 @@ function waitingOnGeo(s){
    this one; the rest can wait their turn. */
 function nextGeoStop(){
   if (waitingOnGeo(revStop)) return revStop;
+  if (focusStopId !== null){
+    const f = byId(focusStopId);
+    if (waitingOnGeo(f)) return f;
+  }
   return stops.find(x => waitingOnGeo(x));
 }
 
@@ -1649,7 +1694,7 @@ async function runGeoQueue(){
     drawReveal();
     /* stay polite to the free geocoders, but do not make him watch the pause
        when the next one up is the card he has open */
-    await sleep(waitingOnGeo(revStop) ? 120 : 350);
+    await sleep((waitingOnGeo(revStop) || (focusStopId !== null && waitingOnGeo(byId(focusStopId)))) ? 120 : 350);
   }
   geoRunning = false;
   updateGeoStatus();
@@ -1961,7 +2006,7 @@ function commitCard(){
   closeCard();
   const s = addStop(Object.assign({ street:f.street, suburb:f.suburb, postcode:f.postcode,
     con:p.con||"", article:p.article||"", receiver:p.receiver||"", company:p.company||"", phone:p.phone||"" }, extra));
-  openReveal(s);
+  afterAdd(s);
   return true;
 }
 
@@ -2189,6 +2234,35 @@ function render(){
    ========================================================== */
 let mapUserMoved = false, mapProg = 0, fittedOnce = false, lastFitKey = "";
 let showLabels = true, placing = null, adding = false, addBusy = false, fitDepot = false;
+let focusStopId = null, focusCentred = false;
+
+/* He adds a stop, then wants to look at it — so the page goes to the map and
+   scrolls it into view, rather than leaving him to find the tab himself and
+   hunt for which pin is the new one. The pin stays green until he adds the
+   next one. */
+function focusStop(s){
+  if (!s) return;
+  focusStopId = s.id;
+  focusCentred = false;
+  showMapTab();
+  const wrap = $("mapWrap");
+  if (wrap && wrap.scrollIntoView){
+    try{ wrap.scrollIntoView({ behavior:"smooth", block:"start" }); }
+    catch(e){ wrap.scrollIntoView(); }
+  }
+  setTimeout(()=>{ if (map) map.invalidateSize(); centreOnFocus(); }, 80);
+}
+
+/* the address usually has not been looked up yet when he lands on the map, so
+   this runs again from drawMap() the moment the position arrives */
+function centreOnFocus(){
+  if (!mapReady || focusCentred || focusStopId === null) return;
+  const s = byId(focusStopId);
+  if (!s || s.lat === null) return;
+  progMap(()=> map.setView([s.lat, s.lng], Math.max(map.getZoom() || 0, 17)));
+  focusCentred = true;
+  mapUserMoved = true;                    // his view now, do not refit over it
+}
 
 function progMap(fn){
   mapProg++;
@@ -2247,9 +2321,10 @@ function drawMap(){
   const list = displayList().filter(s => s.lat !== null);
   list.forEach((s,i) => {
     const rough = s.geoState === "ok" && s.geoPrecision === "approx" && !s.pinned;
+    const fresh = s.id === focusStopId;
     const icon = L.divIcon({
-      className:"", iconSize:[30,30], iconAnchor:[15,28], popupAnchor:[0,-26],
-      html:'<div class="pin'+(rough?" dim":"")+'"><span>'+(i+1)+'</span></div>'
+      className:"", iconSize:fresh?[38,38]:[30,30], iconAnchor:fresh?[19,36]:[15,28], popupAnchor:[0,-26],
+      html:'<div class="pin'+(fresh?" fresh":(rough?" dim":""))+'"><span>'+(i+1)+'</span></div>'
     });
     const m = L.marker([s.lat,s.lng], { icon }).addTo(markerLayer);
     if (showLabels){
@@ -2277,8 +2352,9 @@ function drawMap(){
 
   /* only take the view when the set of pins actually changed and he has not
      started looking around for himself */
+  centreOnFocus();
   const key = list.map(s => s.id).join(",") + "|" + (fitDepot && depotPt ? "d" : "");
-  if (!fittedOnce || (key !== lastFitKey && !mapUserMoved)) fitAll(false);
+  if (focusStopId === null && (!fittedOnce || (key !== lastFitKey && !mapUserMoved))) fitAll(false);
   lastFitKey = key;
 }
 
@@ -2452,13 +2528,14 @@ $("tabList").addEventListener("click", () => {
   $("tabList").classList.add("on"); $("tabMap").classList.remove("on");
   $("listWrap").style.display = "block"; $("mapWrap").style.display = "none";
 });
-$("tabMap").addEventListener("click", () => {
+function showMapTab(){
   tab = "map";
   $("tabMap").classList.add("on"); $("tabList").classList.remove("on");
   $("mapWrap").style.display = "block"; $("listWrap").style.display = "none";
   initMap();
   setTimeout(()=>{ map.invalidateSize(); drawMap(); }, 60);
-});
+}
+$("tabMap").addEventListener("click", showMapTab);
 let followMe = false;
 function setFollow(on){
   followMe = on;
@@ -2474,7 +2551,7 @@ $("btnMe").addEventListener("click", ()=>{
   initMap();
   setFollow(!followMe);
 });
-$("btnAll").addEventListener("click", ()=>{ initMap(); setFollow(false); fitAll(true); });
+$("btnAll").addEventListener("click", ()=>{ focusStopId = null; focusCentred = false; initMap(); setFollow(false); fitAll(true); });
 $("btnLabels").addEventListener("click", ()=>{
   setPref("mapLabels", !prefs.mapLabels);
   drawMap();
@@ -2520,6 +2597,7 @@ $("btnFitDepot").addEventListener("click", ()=>{
 $("btnBig").addEventListener("click", ()=>{
   const full = document.body.classList.toggle("mapfull");
   setToggle("btnBig", full, full ? "Full screen" : "Expand");
+  fitDock();
   setTimeout(()=>{ if (map) map.invalidateSize(); }, 80);
 });
 $("placeBar").addEventListener("click", ()=>{
@@ -3206,6 +3284,7 @@ function renderStoreNote(){
 
 /* ================= Manual panel ================= */
 function showManual(on){
+  if (on) refreshExample();
   $("manualPanel").style.display = on ? "block" : "none";
   setToggle("btnManual", on, "Add by hand");
   if (on) $("manStreet").focus();
@@ -3241,17 +3320,18 @@ $("btnManAdd").addEventListener("click", ()=>{
   $("manNote").textContent = "Type it any way you like — unit numbers, no suburb, short forms. Pick a match and it drops straight onto the map.";
   pendingStop = null; manPick = null;
   flashStrip("hit","Parcel "+s.parcel+": "+s.street);
-  openReveal(s);
+  afterAdd(s);
 });
 
 /* ---- the settings screen, built from one spec so a new preference is a
         single line here rather than markup, styling and a handler ---- */
 const PREF_UI = [
   { group: "Scanning" },
-  { key:"scanFlow", type:"choice", label:"After each scan",
+  { key:"scanFlow", type:"choice", label:"After adding a stop",
     options:[
-      ["check",  "Check it on the map", "The stop card opens so you can see where it landed, fix the address or move the pin, then carry on."],
-      ["through","Keep scanning",       "No card. The strip tells you what was read and the camera stays on it, so you can work straight through a load."]
+      ["map",    "Jump to the map",  "The page scrolls down to the map and centres on the parcel you just added, shown as a green pin."],
+      ["check",  "Open the stop card","A full screen card with its own map, where you can also correct the address or drag the pin."],
+      ["through","Stay put",         "Nothing happens, so you can scan a whole load straight through. The strip still tells you what was read."]
     ] },
   { key:"autoCamera", type:"switch", label:"Open the camera on startup",
     note:"Only if you have already allowed the camera on this phone — it will never ask you for permission out of the blue." },
@@ -3415,7 +3495,8 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, edFields, setToggle, nextGeoStop, cardStartPoint, waitingOnGeo, loadPrefs, savePrefs, setPref, applyPrefs,
+  makeResizer, edFields, setToggle, fitDock, focusStop, centreOnFocus, showMapTab, afterAdd,
+  get focusStopId(){ return focusStopId; }, set focusStopId(v){ focusStopId = v; }, anExample, refreshExample, EXAMPLE_ADDRESSES, nextGeoStop, cardStartPoint, waitingOnGeo, loadPrefs, savePrefs, setPref, applyPrefs,
   renderPrefRows, openSettings, closeSettings, holdScreen, maybeAutoCamera,
   PREF_DEFAULTS, PREF_UI, PREFS_KEY,
   get prefs(){ return prefs; }, set prefs(v){ prefs = v; }, openCard, commitCard, closeCard, showManual, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
@@ -3443,12 +3524,13 @@ renderHistoryNote();
 renderStoreNote();
 loadPrefs();
 applyPrefs();
+refreshExample();
 
 /* ---- which build is actually loaded ----
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-02.2";
+const APP_VERSION = "2026-08-02.5";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
@@ -3468,8 +3550,33 @@ async function maybeAutoCamera(){
   startScanner();
 }
 
+/* The dock is fixed over the page, so the page has to reserve room for it or
+   it eats the buttons underneath. Its height varies with the phone's home
+   indicator and the text size, so measure it rather than guessing — the last
+   guess was 104px and a home indicator pushed it to 113. */
+function fitDock(){
+  const dock = document.querySelector(".dock");
+  if (!dock) return 0;
+  if (document.body.classList.contains("mapfull")){
+    document.body.style.paddingBottom = "0px";
+    return 0;
+  }
+  const h = dock.offsetHeight || 0;
+  /* if the height cannot be measured, hand back to the stylesheet rather than
+     leaving the page with no clearance at all */
+  document.body.style.paddingBottom = h ? (h + 20) + "px" : "";
+  return h;
+}
+
+window.addEventListener("resize", fitDock);
+window.addEventListener("orientationchange", ()=> setTimeout(fitDock, 250));
+if (window.ResizeObserver){
+  try{ new ResizeObserver(fitDock).observe(document.querySelector(".dock")); } catch(e){}
+}
+
 makeResizer("mapGrab", "map", "addressScannerWithMaps.mapH", 240, ()=>{ if (map) map.invalidateSize(); });
 render();
+fitDock();
 startWatch();
 runGeoQueue();
 maybeAutoCamera();
