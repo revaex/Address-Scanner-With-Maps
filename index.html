@@ -215,6 +215,11 @@
   .edwhere b{color:var(--ink)}
   .edwhere.rough b{color:var(--amber)}
   .edwhere.mine b{color:var(--green)}
+  .edwhere .finding{display:inline-flex;align-items:center;gap:6px;color:var(--ink)}
+  .edwhere .finding i{width:11px;height:11px;border-radius:50%;border:2px solid var(--line);
+    border-top-color:var(--amber);animation:spin .7s linear infinite;flex:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.edwhere .finding i{animation:none}}
   #revMap{flex:1 1 auto;min-height:180px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel-2)}
   .rev-bottom{flex:none;padding:9px 14px calc(12px + env(safe-area-inset-bottom));background:var(--panel)}
   .rev-near{font-size:13px;color:var(--ink);line-height:1.45}
@@ -1524,6 +1529,20 @@ function biasPoint(){
   return placed ? { lat:placed.lat, lng:placed.lng } : null;
 }
 
+/* Where to point the card map while the address is still being looked up.
+   The parcel just scanned is far more likely to be near the last one on the
+   round than near the depot he is standing in, so the most recently placed
+   stop wins over his own position here. */
+function cardStartPoint(){
+  for (let i = stops.length - 1; i >= 0; i--){
+    const s = stops[i];
+    if (s.lat !== null && !s.done && (!revStop || s.id !== revStop.id)) return { lat:s.lat, lng:s.lng, zoom:14 };
+  }
+  if (me) return { lat:me.lat, lng:me.lng, zoom:15 };
+  if (depotPt) return { lat:depotPt.lat, lng:depotPt.lng, zoom:14 };
+  return null;
+}
+
 function photonUrl(q, limit, bias){
   let url = "https://photon.komoot.io/api/?limit=" + limit + "&lang=en&bbox=112.9,-43.7,153.7,-9.1&q=" + encodeURIComponent(q);
   if (bias) url += "&lat=" + bias.lat.toFixed(5) + "&lon=" + bias.lng.toFixed(5);
@@ -1598,13 +1617,27 @@ async function locate(q){
   return hits.length ? { lat:hits[0].lat, lng:hits[0].lng } : null;
 }
 
+function waitingOnGeo(s){
+  return !!s && s.geoState === "queued" && !s.done && !s.pinned;
+}
+
+/* The stop he is looking at jumps the queue. Scan five parcels quickly and
+   the fifth used to wait behind the other four, each a network round trip
+   away, so the card he was staring at sat blank for seconds. He is watching
+   this one; the rest can wait their turn. */
+function nextGeoStop(){
+  if (waitingOnGeo(revStop)) return revStop;
+  return stops.find(x => waitingOnGeo(x));
+}
+
 async function runGeoQueue(){
   if (geoRunning) return;
   geoRunning = true;
   while (true){
-    const s = stops.find(x => x.geoState === "queued" && !x.done && !x.pinned);
+    const s = nextGeoStop();
     if (!s) break;
     s.geoState = "working"; updateGeoStatus();
+    if (cardOpen() && revStop && revStop.id === s.id) edWhereSay();
     const hit = await locateStop(s);
     if (hit){
       s.lat = hit.lat; s.lng = hit.lng; s.geoState = "ok";
@@ -1614,7 +1647,9 @@ async function runGeoQueue(){
     }
     render();
     drawReveal();
-    await sleep(350);
+    /* stay polite to the free geocoders, but do not make him watch the pause
+       when the next one up is the card he has open */
+    await sleep(waitingOnGeo(revStop) ? 120 : 350);
   }
   geoRunning = false;
   updateGeoStatus();
@@ -1760,6 +1795,12 @@ function cardOpen(){ return $("reveal").classList.contains("on"); }
 function edWhereSay(){
   const el = $("edWhere");
   const place = [edSuburbVal, edPostcodeVal].filter(Boolean).join(" ");
+  if (!edPin && revStop && (revStop.geoState === "queued" || revStop.geoState === "working")){
+    el.className = "edwhere";
+    el.innerHTML = '<span class="finding"><i></i>Finding it on the map\u2026</span>' +
+      (place ? " \u00B7 " + esc(place) : "");
+    return;
+  }
   if (edPinSource === "user"){
     el.className = "edwhere mine";
     el.innerHTML = "Pin placed by you \u00B7 <b>kept</b>, the address lookup will not move it" +
@@ -1818,6 +1859,9 @@ function openCard(opts){
 
   edWhereSay();
   $("reveal").classList.add("on");
+  /* size and place the map in the same frame the card appears in, so it is
+     never a grey box he has to wait on */
+  if (revMap){ revMap.invalidateSize(); drawReveal(); }
   setTimeout(()=>{
     if (!revMap && window.L){
       revMap = L.map("revMap", { zoomControl:true, attributionControl:false });
@@ -1970,6 +2014,7 @@ function drawReveal(){
     if (revStop.postcode && !edPostcodeVal) edPostcodeVal = revStop.postcode;
     edWhereSay();
   }
+  edWhereSay();
   $("revNear").innerHTML = nearestBlurb(revStop);
   if (!revMap || !revLayer) return;
   const drawKey = revealKey();
@@ -2016,10 +2061,10 @@ function drawReveal(){
     try{ revMap.setView([edPin.lat, edPin.lng], 17); }
     finally { setTimeout(()=>{ revProg = Math.max(0, revProg-1); }, 400); }
   } else if (!edPin && !revUserMoved && key !== revFitKey){
-    const b = biasPoint();
+    const b = cardStartPoint();
     if (b){
       revProg++;
-      try{ revMap.setView([b.lat, b.lng], 15); }
+      try{ revMap.setView([b.lat, b.lng], b.zoom); }
       finally { setTimeout(()=>{ revProg = Math.max(0, revProg-1); }, 400); }
     }
   }
@@ -3370,7 +3415,7 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, edFields, setToggle, loadPrefs, savePrefs, setPref, applyPrefs,
+  makeResizer, edFields, setToggle, nextGeoStop, cardStartPoint, waitingOnGeo, loadPrefs, savePrefs, setPref, applyPrefs,
   renderPrefRows, openSettings, closeSettings, holdScreen, maybeAutoCamera,
   PREF_DEFAULTS, PREF_UI, PREFS_KEY,
   get prefs(){ return prefs; }, set prefs(v){ prefs = v; }, openCard, commitCard, closeCard, showManual, ocrFixNumbers, ocrFixLetters, ocrCandidates, parseOcrText,
@@ -3403,7 +3448,7 @@ applyPrefs();
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-02.1";
+const APP_VERSION = "2026-08-02.2";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
