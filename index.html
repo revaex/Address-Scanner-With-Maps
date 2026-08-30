@@ -263,14 +263,20 @@
 
   .dock{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to top,var(--bg) 70%,transparent);padding:10px 14px calc(16px + env(safe-area-inset-bottom))}
 
+  #errBar{display:none;position:fixed;left:0;right:0;top:0;z-index:2000;background:var(--red);color:#2a0000;
+    padding:10px 12px calc(10px + env(safe-area-inset-top));gap:8px;align-items:flex-start;
+    font-size:12.5px;font-weight:700;line-height:1.35}
+  #errBar.on{display:flex}
+  #errBar .errtxt{flex:1;min-width:0;word-break:break-word;font-family:ui-monospace,Menlo,monospace;font-weight:600}
+  #errBar button{flex:none;padding:6px 10px;font-size:12px;border-radius:8px;background:rgba(0,0,0,.22);color:#fff}
   #banner{display:none;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--amber);
     border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:14px}
   #banner .txt{flex:1;line-height:1.35}
   #banner .txt b{color:var(--amber)}
   #banner button{padding:8px 12px;font-size:13px;border-radius:9px;background:transparent;color:var(--ink-dim);border:1px solid var(--line)}
   .footer{text-align:center;padding:6px 0 18px}
-  .verline{margin-top:8px;font-size:11.5px;color:var(--ink-dim);letter-spacing:.04em}
-  .verline b{color:var(--ink)}
+  .verline{margin-top:8px;font-size:12.5px;color:var(--ink-dim);letter-spacing:.04em}
+  .verline b{color:var(--amber);font-size:14px;font-variant-numeric:tabular-nums}
   .verline button{padding:5px 10px;font-size:11px;margin-left:6px}
   .footer button{background:transparent;color:var(--ink-dim);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600}
   .saveflag{font-size:12px;color:var(--ink-dim);text-align:center;margin-bottom:8px}
@@ -342,7 +348,13 @@
     </div>
   </header>
 
-  <div id="banner"><div class="txt" id="bannerTxt"></div><button id="bannerFresh">Start fresh</button></div>
+  <div id="errBar">
+  <div class="errtxt" id="errTxt"></div>
+  <button id="errCopy">Copy</button>
+  <button id="errHide">✕</button>
+</div>
+
+<div id="banner"><div class="txt" id="bannerTxt"></div><button id="bannerFresh">Start fresh</button></div>
 
   <div id="scanStrip"><span class="dot"></span><span id="scanMsg">Camera off</span></div>
   <div id="reader"></div>
@@ -1133,6 +1145,36 @@ function applyPrefs(){
   if (mapReady){ drawMap(); }
   if (cardOpen()){ revLayerKey = ""; drawReveal(); }
 }
+
+/* ==========================================================
+   Faults, where he can see them
+
+   This runs on a phone with no console, so a script error is completely
+   invisible — the app just stops doing something and there is no way to
+   find out why. Anything that throws now shows up on screen with a copy
+   button, so a fault can be reported instead of guessed at.
+   ========================================================== */
+let lastFault = "";
+
+function showFault(what, where){
+  lastFault = String(what || "unknown") + (where ? "  @ " + where : "") + "  [build " +
+    (typeof APP_VERSION === "string" ? APP_VERSION : "?") + "]";
+  const bar = document.getElementById("errBar");
+  const txt = document.getElementById("errTxt");
+  if (!bar || !txt) return;
+  txt.textContent = lastFault;
+  bar.classList.add("on");
+}
+
+window.addEventListener("error", e => {
+  if (!e) return;
+  const where = e.filename ? (String(e.filename).split("/").pop() + ":" + e.lineno) : "";
+  showFault((e.message || "script error"), where);
+});
+window.addEventListener("unhandledrejection", e => {
+  const r = e && e.reason;
+  showFault("unhandled: " + ((r && (r.message || r)) || "promise rejected"), "");
+});
 
 /* ================= Scan feedback ================= */
 function flashStrip(kind, msg){
@@ -3529,6 +3571,20 @@ $("histSkip").addEventListener("click", () => { closeHistSheet(); wipe(pendingRe
 $("histCancel").addEventListener("click", closeHistSheet);
 $("histBack").addEventListener("click", closeHistSheet);
 
+$("errHide").addEventListener("click", ()=> $("errBar").classList.remove("on"));
+$("errCopy").addEventListener("click", async ()=>{
+  try{
+    if (navigator.clipboard) await navigator.clipboard.writeText(lastFault);
+    else {
+      const ta = document.createElement("textarea");
+      ta.value = lastFault; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove();
+    }
+    $("errCopy").textContent = "Copied";
+    setTimeout(()=>{ $("errCopy").textContent = "Copy"; }, 1500);
+  } catch(e){}
+});
+
 $("btnScan").addEventListener("click", startScanner);
 $("btnClear").addEventListener("click", () => offerNewRun(false));
 $("btnResetAll").addEventListener("click", () => offerNewRun(true));
@@ -3574,7 +3630,7 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, edFields, setToggle, fitDock, sourceLine, readAddressUnderPin, SOURCE_WORDS, focusStop, centreOnFocus, showMapTab, afterAdd,
+  makeResizer, edFields, setToggle, showFault, fitDock, sourceLine, readAddressUnderPin, SOURCE_WORDS, focusStop, centreOnFocus, showMapTab, afterAdd,
   get focusStopId(){ return focusStopId; }, set focusStopId(v){ focusStopId = v; }, anExample, refreshExample, EXAMPLE_ADDRESSES, nextGeoStop, cardStartPoint, waitingOnGeo, loadPrefs, savePrefs, setPref, applyPrefs,
   renderPrefRows, openSettings, closeSettings, holdScreen, maybeAutoCamera,
   PREF_DEFAULTS, PREF_UI, PREFS_KEY,
@@ -3609,7 +3665,7 @@ refreshExample();
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-02.7";
+const APP_VERSION = "2026-08-02.8";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
