@@ -17,7 +17,12 @@
     --radius:14px;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%}
+  html{height:100%}
+  /* body must GROW with its content. With height:100% and border-box the body
+     box is capped at the viewport, so padding-bottom sat inside that box and
+     reserved no room at all — the dock covered the footer no matter what
+     number was used. */
+  body{min-height:100%;height:auto}
   body{
     background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -163,6 +168,7 @@
   }
   .stoplabel:before{display:none}
   .stoplabel.done{opacity:.55}
+  .stoplabel.depot{border-color:var(--blue);color:var(--blue)}
   .grabber{display:flex;align-items:center;justify-content:center;height:22px;cursor:ns-resize;touch-action:none}
   .grabber i{display:block;width:52px;height:5px;border-radius:3px;background:var(--line)}
   .grabber:active i{background:var(--amber)}
@@ -325,6 +331,17 @@
   .choice button.on{background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
   .choice button.on b{color:var(--amber-ink)}
   .setnote{color:var(--ink-dim);font-size:12.5px;line-height:1.45}
+
+  .statgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .stat{flex:1 1 calc(50% - 4px);min-width:140px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:12px;padding:11px 12px}
+  .stat b{display:block;font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}
+  .stat span{display:block;color:var(--ink-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+  .stat i{display:block;font-style:normal;color:var(--ink-dim);font-size:11.5px;margin-top:4px;line-height:1.35}
+  .stat.big{flex:1 1 100%}
+  .stat.amber b{color:var(--amber)} .stat.green b{color:var(--green)} .stat.blue b{color:var(--blue)}
+  .bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:8px}
+  .bar i{display:block;height:100%;background:var(--green);border-radius:4px}
   .runcard{border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden;background:var(--panel-2)}
   .runhead{width:100%;text-align:left;background:transparent;color:var(--ink);padding:12px 13px;font-size:14.5px;border-radius:0}
   .runhead b{display:block;font-size:15px}
@@ -496,6 +513,7 @@
   </div>
   <div class="saveflag" id="saveFlag"></div>
   <div class="footer">
+    <button class="tog" id="btnStats">Stats</button>
     <button class="tog" id="btnSettings">Settings</button>
     <button id="btnResetAll">Reset everything</button>
     <div class="verline">Version <b id="verStamp"></b> <button id="btnHardRefresh">Load the latest</button></div>
@@ -531,6 +549,18 @@
         <button class="btn btn-ghost" id="revSecond">Remove this one</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="statsBack" class="modalBack"></div>
+<div id="statsSheet" class="modal full">
+  <div class="full-scroll">
+    <h3>Stats</h3>
+    <div id="statsBody"></div>
+    <div class="note" style="margin-top:16px" id="statsAssume"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-amber" id="statsClose">Done</button>
   </div>
 </div>
 
@@ -1923,7 +1953,8 @@ function cardOpen(){ return $("reveal").classList.contains("on"); }
 function edWhereSay(){
   const el = $("edWhere");
   const place = [edSuburbVal, edPostcodeVal].filter(Boolean).join(" ");
-  if (!edPin && revStop && (revStop.geoState === "queued" || revStop.geoState === "working")){
+  if (!edPin && ((revStop && (revStop.geoState === "queued" || revStop.geoState === "working")) ||
+                 (!revStop && $("edStreet").value.trim()))){
     el.className = "edwhere";
     el.innerHTML = '<span class="finding"><i></i>Finding it on the map\u2026</span>' +
       (place ? " \u00B7 " + esc(place) : "");
@@ -1987,6 +2018,10 @@ function openCard(opts){
 
   edWhereSay();
   $("reveal").classList.add("on");
+  /* An address read off a photo has no position yet and no stop to attach a
+     lookup to, so the card came up with an empty map and no pin. Place it now
+     so he can see where it is before he accepts it. */
+  if (!edPin && !revStop && src.street) previewPrefill(src);
   /* size and place the map in the same frame the card appears in, so it is
      never a grey box he has to wait on */
   if (revMap){ revMap.invalidateSize(); drawReveal(); }
@@ -2003,6 +2038,22 @@ function openCard(opts){
     if (revMap) revMap.invalidateSize();
     drawReveal();
   }, 60);
+}
+
+/* find a prefilled address so the card can show a pin for it */
+let previewSeq = 0;
+async function previewPrefill(src){
+  const seq = ++previewSeq;
+  const hit = await locateStop({ street:src.street, suburb:src.suburb||"", postcode:src.postcode||"" });
+  if (seq !== previewSeq || !cardOpen() || revStop) return;
+  if (edPinSource === "user" || edPinSource === "cleared") return;   // his pin wins
+  if (!hit) { edWhereSay(); return; }
+  edPin = { lat:hit.lat, lng:hit.lng };
+  edPinSource = "suggest";
+  edPinPrecision = hit.precision;
+  edWhereSay();
+  revUserMoved = false; revFitKey = ""; revLayerKey = "";
+  drawReveal();
 }
 
 function openReveal(s){ openCard({ stop:s, mode:"scanned" }); }
@@ -2202,8 +2253,12 @@ function drawReveal(){
       html:'<div class="medot"></div>' }) }).addTo(revLayer);
   }
   if (depotPt){
-    L.marker([depotPt.lat,depotPt.lng], { icon:L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,15],
+    const dm = L.marker([depotPt.lat,depotPt.lng], { icon:L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,15],
       html:'<div class="pin depot"><span>D</span></div>' }) }).addTo(revLayer);
+    if (showLabels){
+      dm.bindTooltip("Depot \u00B7 " + esc(depotPt.addr || ""),
+        { permanent:true, direction:"right", offset:[12,0], className:"stoplabel depot", opacity:1 });
+    }
   }
 
   /* open right on top of this stop, then leave the view alone */
@@ -2456,7 +2511,13 @@ function drawMap(){
   if (depotPt){
     const icon = L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,15],
       html:'<div class="pin depot"><span>D</span></div>' });
-    L.marker([depotPt.lat,depotPt.lng], { icon }).addTo(markerLayer).bindPopup("Depot");
+    const dm = L.marker([depotPt.lat,depotPt.lng], { icon }).addTo(markerLayer);
+    if (showLabels){
+      dm.bindTooltip("Depot \u00B7 " + esc(depotPt.addr || "set in the panel below"),
+        { permanent:true, direction:"right", offset:[12,0], className:"stoplabel depot", opacity:1 });
+    }
+    dm.bindPopup('<div class="pop-street">Depot</div><div class="pop-sub">' +
+      esc(depotPt.addr || "") + '</div>');
   }
   drawMe();
 
@@ -3681,6 +3742,154 @@ $("settsReset").addEventListener("click", ()=>{
   flashStrip("hit", "Settings put back to normal");
 });
 
+/* ==========================================================
+   Stats
+
+   Straight-line distance between stops undercounts badly, so it is scaled by
+   a winding factor to approximate road distance. Everything here is an
+   estimate from figures a driver can sanity check, and the screen says so —
+   better an honest approximation than a precise looking number that is wrong.
+   ========================================================== */
+const ROAD_FACTOR   = 1.35;   // straight line to road distance, suburban
+const AVG_SPEED_KMH = 30;     // suburban delivery average, including stopping
+const MIN_PER_DROP  = 2.5;    // parking, walking up, handing over, back in
+const VAN_L_PER_100 = 11.5;   // typical mid-size diesel delivery van
+
+function legKm(a, b){ return (a && b) ? haversine(a, b) * ROAD_FACTOR : 0; }
+
+/* distance along a list of stops, from where he is, ending at the depot */
+function routeKm(list, from, to){
+  const pts = list.filter(s => s.lat !== null);
+  let km = 0, prev = from || (pts.length ? pts[0] : null);
+  pts.forEach(p => { km += legKm(prev, p); prev = p; });
+  if (to && prev) km += legKm(prev, to);
+  return km;
+}
+
+function fmtMins(mins){
+  if (!isFinite(mins) || mins <= 0) return "—";
+  const h = Math.floor(mins / 60), m = Math.round(mins % 60);
+  return h ? (h + "h " + (m < 10 ? "0" : "") + m + "m") : (m + "m");
+}
+
+function runStats(){
+  const all = stops, done = all.filter(s => s.done), left = active();
+  const placed = left.filter(s => s.lat !== null);
+  const km = routeKm(displayList(), me, depotPt);
+  const driveMins = km / AVG_SPEED_KMH * 60;
+  const dropMins = placed.length * MIN_PER_DROP;
+  const times = done.filter(s => s.doneAt).map(s => s.doneAt).sort((a,b) => a - b);
+  let actualMins = 0, perDrop = 0;
+  if (runStartedAt && times.length){
+    actualMins = (times[times.length-1] - runStartedAt) / 60000;
+    perDrop = actualMins / times.length;
+  }
+  let spread = 0;
+  if (placed.length > 1){
+    let far = 0;
+    placed.forEach(a => placed.forEach(b => { const d = haversine(a,b); if (d > far) far = d; }));
+    spread = far;
+  }
+  return {
+    total: all.length, done: done.length, left: left.length, placed: placed.length,
+    km, driveMins, dropMins, totalMins: driveMins + dropMins,
+    litres: km / 100 * VAN_L_PER_100,
+    actualMins, perDrop, spread,
+    pace: (perDrop && placed.length) ? perDrop * placed.length : 0
+  };
+}
+
+function lifetimeStats(){
+  let runs = 0, drops = 0, km = 0, litres = 0, days = {};
+  historyStore.runs.forEach(r => {
+    runs++;
+    const d = (r.stops || []).filter(x => x.done);
+    drops += d.length;
+    const ordered = d.filter(x => x.doneSeq != null && typeof x.lat === "number")
+      .sort((a,b) => a.doneSeq - b.doneSeq);
+    let prev = null, rk = 0;
+    ordered.forEach(x => { if (prev) rk += legKm(prev, x); prev = x; });
+    km += rk;
+    if (r.savedAt) days[fmtDate(r.savedAt)] = 1;
+  });
+  litres = km / 100 * VAN_L_PER_100;
+  const cur = stops.filter(s => s.done).length;
+  return { runs, drops: drops + cur, km, litres, days: Object.keys(days).length,
+    perRun: runs ? (drops / runs) : 0 };
+}
+
+function statCard(cls, value, label, note){
+  return '<div class="stat ' + cls + '"><b>' + esc(value) + '</b><span>' + esc(label) + '</span>' +
+    (note ? '<i>' + esc(note) + '</i>' : '') + '</div>';
+}
+
+function renderStats(){
+  const r = runStats(), l = lifetimeStats();
+  const box = $("statsBody");
+  let h = "";
+
+  h += '<div class="setgroup">This run</div>';
+  if (!r.total){
+    h += '<div class="note">Nothing on the run yet. Scan a parcel and the numbers start here.</div>';
+  } else {
+    const pct = r.total ? Math.round(r.done / r.total * 100) : 0;
+    h += '<div class="statgrid">';
+    h += '<div class="stat big green"><b>' + r.done + " of " + r.total + '</b><span>delivered</span>' +
+         '<div class="bar"><i style="width:' + pct + '%"></i></div></div>';
+    h += statCard("amber", r.km < 1 ? "—" : r.km.toFixed(1) + " km", "still to drive",
+        "Road estimate for the " + r.placed + " stop" + (r.placed===1?"":"s") + " left" + (depotPt ? ", ending at the depot" : ""));
+    h += statCard("", fmtMins(r.totalMins), "likely time left",
+        fmtMins(r.driveMins) + " driving, " + fmtMins(r.dropMins) + " at the doors");
+    h += statCard("", r.km < 1 ? "—" : (r.litres.toFixed(1) + " L"), "fuel for what is left",
+        "At " + VAN_L_PER_100 + " L/100km");
+    h += statCard("blue", r.spread ? r.spread.toFixed(1) + " km" : "—", "widest gap",
+        "Furthest two stops apart");
+    if (r.actualMins > 0){
+      h += statCard("", fmtMins(r.actualMins), "on the road so far",
+          "Since the first parcel was scanned");
+      h += statCard("green", fmtMins(r.perDrop), "per drop so far",
+          "Average across " + r.done + " delivered");
+    }
+    h += '</div>';
+  }
+
+  h += '<div class="setgroup">All time</div>';
+  if (!l.runs && !l.drops){
+    h += '<div class="note">Save a run and it starts counting here.</div>';
+  } else {
+    h += '<div class="statgrid">';
+    h += statCard("amber", l.drops, "parcels delivered", "Across every run kept on this phone");
+    h += statCard("", l.runs, "runs saved", l.days ? ("On " + l.days + " different day" + (l.days===1?"":"s")) : "");
+    h += statCard("blue", l.km < 1 ? "—" : Math.round(l.km) + " km", "driven",
+        "Estimated from the order you actually delivered in");
+    h += statCard("", l.litres < 1 ? "—" : Math.round(l.litres) + " L", "fuel used", "At " + VAN_L_PER_100 + " L/100km");
+    if (l.perRun) h += statCard("green", l.perRun.toFixed(1), "parcels per run", "Average");
+    h += '</div>';
+  }
+  box.innerHTML = h;
+  $("statsAssume").innerHTML = "These are estimates, not measurements. Distance is straight-line " +
+    "scaled by " + ROAD_FACTOR + " to allow for real roads, driving is reckoned at " + AVG_SPEED_KMH +
+    " km/h and " + MIN_PER_DROP + " minutes a drop, and fuel at " + VAN_L_PER_100 + " L/100km. " +
+    "Good enough to plan a day by, not for a logbook.";
+}
+
+function openStats(){
+  renderStats();
+  $("statsBack").style.display = "block";
+  $("statsSheet").style.display = "block";
+  setToggle("btnStats", true, "Stats");
+}
+function closeStats(){
+  $("statsBack").style.display = "none";
+  $("statsSheet").style.display = "none";
+  setToggle("btnStats", false, "Stats");
+}
+$("btnStats").addEventListener("click", ()=>{
+  if ($("statsSheet").style.display === "block") closeStats(); else openStats();
+});
+$("statsClose").addEventListener("click", closeStats);
+$("statsBack").addEventListener("click", closeStats);
+
 /* ================= Misc ================= */
 function offerNewRun(resetAll){
   if (!stops.length){ wipe(resetAll); return; }
@@ -3726,9 +3935,10 @@ $("btnResetAll").addEventListener("click", () => offerNewRun(true));
 $("bannerFresh").addEventListener("click", () => offerNewRun(false));
 /* the depot deserves the same treatment as any other address: pick it out of a
    list and get told plainly whether it landed */
-function depotFound(d, addr){
+function depotFound(d, addr, seq){
+  if (seq !== undefined && seq !== depotSeq) return;
   if (d){
-    $("depotNote").innerHTML = "Depot placed at <b>" + esc(addr) +
+    $("depotNote").innerHTML = "Depot placed at <b>" + esc((depotPt && depotPt.addr) || addr) +
       "</b>. The run starts from wherever you are and finishes back here.";
   } else if (addr){
     $("depotNote").textContent = "Could not place that one. Type a bit more of it and pick from the list, or add the suburb.";
@@ -3737,23 +3947,32 @@ function depotFound(d, addr){
   }
 }
 
+/* Tapping a suggestion blurs the box first, so the box's own change handler
+   fired with the half-typed text ("4 Val") and its slow lookup came back after
+   the pick and overwrote the message. Every depot lookup now carries a ticket
+   and only the newest one is allowed to report. */
+let depotSeq = 0;
+
 wireSuggest("depot", "depotSug", it => {
   const addr = [it.street, it.suburb, it.postcode].filter(Boolean).join(", ");
+  const seq = ++depotSeq;
   $("depot").value = addr;
   depotPt = { lat:it.lat, lng:it.lng, addr };
-  depotFound(depotPt, addr);
-  flashStrip("hit", "Depot set: " + it.street);
+  depotFound(depotPt, addr, seq);
+  flashStrip("hit", "Depot set: " + addr);
   save(); render();
 });
 
 $("depot").addEventListener("change", async ()=>{
   const addr = $("depot").value.trim();
-  if (depotPt && depotPt.addr === addr){ depotFound(depotPt, addr); return; }
+  const seq = ++depotSeq;
+  if (depotPt && depotPt.addr === addr){ depotFound(depotPt, addr, seq); return; }
   depotPt = null;
-  if (!addr){ depotFound(null, ""); render(); return; }
+  if (!addr){ depotFound(null, "", seq); render(); return; }
   $("depotNote").textContent = "Finding the depot...";
   const d = await ensureDepot();
-  depotFound(d, addr);
+  if (seq !== depotSeq) return;                 // he picked one while this ran
+  depotFound(d, addr, seq);
   if (d) flashStrip("hit", "Depot set: " + addr);
   render();
 });
@@ -3765,7 +3984,7 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, edFields, setToggle, runToStops, activeForBackup, openRunInSession, currentRunEntry, showFault, fitDock, sourceLine, readAddressUnderPin, SOURCE_WORDS, focusStop, centreOnFocus, showMapTab, afterAdd,
+  makeResizer, edFields, setToggle, runStats, lifetimeStats, routeKm, legKm, fmtMins, renderStats, openStats, closeStats, previewPrefill, runToStops, activeForBackup, openRunInSession, currentRunEntry, showFault, fitDock, sourceLine, readAddressUnderPin, SOURCE_WORDS, focusStop, centreOnFocus, showMapTab, afterAdd,
   get focusStopId(){ return focusStopId; }, set focusStopId(v){ focusStopId = v; }, anExample, refreshExample, EXAMPLE_ADDRESSES, nextGeoStop, cardStartPoint, waitingOnGeo, loadPrefs, savePrefs, setPref, applyPrefs,
   renderPrefRows, openSettings, closeSettings, holdScreen, maybeAutoCamera,
   PREF_DEFAULTS, PREF_UI, PREFS_KEY,
@@ -3800,7 +4019,7 @@ refreshExample();
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-03.1";
+const APP_VERSION = "2026-08-03.2";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
