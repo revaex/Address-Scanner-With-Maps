@@ -169,6 +169,13 @@
   .stoplabel:before{display:none}
   .stoplabel.done{opacity:.55}
   .stoplabel.depot{border-color:var(--blue);color:var(--blue)}
+  #mapLegend{display:none;flex-wrap:wrap;gap:6px 12px;margin-bottom:7px;font-size:11.5px;color:var(--ink-dim)}
+  #mapLegend .lg{display:inline-flex;align-items:center;gap:5px}
+  #mapLegend b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .pin-dot{width:11px;height:11px;border-radius:50% 50% 50% 2px;transform:rotate(-45deg);
+    background:var(--amber);border:1px solid #14181f;display:inline-block;flex:none}
+  .pin-dot.dim{background:#6b7686} .pin-dot.fresh{background:var(--green)}
+  .pin-dot.mine{background:#35d0c4} .pin-dot.depot{background:var(--blue);border-radius:50%;transform:none}
   .grabber{display:flex;align-items:center;justify-content:center;height:22px;cursor:ns-resize;touch-action:none}
   .grabber i{display:block;width:52px;height:5px;border-radius:3px;background:var(--line)}
   .grabber:active i{background:var(--amber)}
@@ -192,6 +199,8 @@
   .pin.fresh span{font-size:15px;color:#04240f}
   .pin.dim{background:#6b7686}
   .pin.dim span{color:#e8ecf2}
+  .pin.mine{background:#35d0c4}
+  .pin.mine span{color:#00302c}
   @keyframes ping{
     0%,100%{box-shadow:0 2px 6px rgba(0,0,0,.5),0 0 0 0 rgba(61,220,132,.5)}
     50%{box-shadow:0 2px 6px rgba(0,0,0,.5),0 0 0 12px rgba(61,220,132,0)}
@@ -214,7 +223,7 @@
     display:flex;flex-direction:column;animation:rise .18s ease-out}
   @keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
   @media (prefers-reduced-motion:reduce){.rev-card{animation:none}}
-  .rev-top{flex:none;padding:12px 14px 10px;position:relative;z-index:30}
+  .rev-top{flex:none;padding:12px 14px 10px;position:relative;z-index:600}
   .rev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
   .rev-tag{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green)}
   .rev-tag.twin{color:var(--blue)}
@@ -231,7 +240,10 @@
     border-top-color:var(--amber);animation:spin .7s linear infinite;flex:none}
   @keyframes spin{to{transform:rotate(360deg)}}
   @media (prefers-reduced-motion:reduce){.edwhere .finding i{animation:none}}
-  #revMap{flex:1 1 auto;min-height:180px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel-2)}
+  /* z-index:0 boxes Leaflet's own panes into their own stacking context, so
+     the address suggestions above can sit over the map instead of behind it */
+  #revMap{flex:1 1 auto;min-height:180px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    background:var(--panel-2);position:relative;z-index:0}
   .rev-bottom{flex:none;padding:9px 14px calc(12px + env(safe-area-inset-bottom));background:var(--panel)}
   .rev-near{font-size:13px;color:var(--ink);line-height:1.45}
   .rev-near b{color:var(--green)}
@@ -291,7 +303,7 @@
 
   .sugbox{position:relative}
   .suglist{list-style:none;margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:none;
-    position:absolute;left:0;right:0;top:100%;z-index:40;box-shadow:0 8px 22px rgba(0,0,0,.55);max-height:52vh;overflow-y:auto}
+    position:absolute;left:0;right:0;top:100%;z-index:610;box-shadow:0 8px 22px rgba(0,0,0,.55);max-height:52vh;overflow-y:auto}
   .suglist.on{display:block}
   .suglist li{padding:11px 12px;font-size:14.5px;background:var(--panel-2);border-bottom:1px solid var(--line);cursor:pointer}
   .suglist li:last-child{border-bottom:none}
@@ -436,6 +448,7 @@
       <button class="mini edit tog" id="btnAddHere">Add stop</button>
       <button class="mini edit tog" id="btnBig">Expand</button>
     </div>
+    <div id="mapLegend"></div>
     <div class="grabber" id="mapGrab"><i></i></div>
     <div id="map"></div>
   </div>
@@ -1126,7 +1139,8 @@ const PREF_DEFAULTS = {
   fitDepot: false,        // include the depot when fitting the map
   useHistory: true,       // let past runs nudge the suggested order
   confirmRemove: true,    // ask twice before dropping a stop
-  pinUpdatesAddress: true // moving a pin re-reads the address at the new spot
+  pinUpdatesAddress: true,// moving a pin re-reads the address at the new spot
+  pinStyle: "status"      // status = colour by how trustworthy the position is | plain
 };
 let prefs = Object.assign({}, PREF_DEFAULTS);
 
@@ -1156,6 +1170,7 @@ function loadPrefs(){
     } catch(e){}
   }
   if (["check","map","through"].indexOf(prefs.scanFlow) === -1) prefs.scanFlow = PREF_DEFAULTS.scanFlow;
+  if (["status","plain"].indexOf(prefs.pinStyle) === -1) prefs.pinStyle = PREF_DEFAULTS.pinStyle;
   showLabels = prefs.mapLabels;
   fitDepot = prefs.fitDepot;
 }
@@ -2112,12 +2127,18 @@ async function readAddressUnderPin(lat, lng){
 
 $("edUnpin").addEventListener("click", ()=>{
   /* "cleared" rather than blank, so the lookup landing does not quietly put
-     the pin straight back */
+     the pin straight back. The address goes too — leaving it there meant
+     retyping the same address needed deleting characters to wake the
+     suggestions up again. */
   edPin = null; edPinSource = "cleared"; edPinPrecision = "";
+  edSuburbVal = ""; edPostcodeVal = ""; edOpenStreet = "";
+  $("edStreet").value = "";
+  $("edSug").classList.remove("on"); $("edSug").innerHTML = "";
   $("edUnpin").style.display = "none";
   edWhereSay();
   revLayerKey = "";
   drawReveal();
+  $("edStreet").focus();
 });
 
 /* if he typed a whole address instead of picking one, read the suburb and
@@ -2230,7 +2251,7 @@ function drawReveal(){
     if (s.lat === null || s.done) return;
     if (revStop && s.id === revStop.id) return;         // drawn separately, draggable
     const icon = L.divIcon({ className:"", iconSize:[30,30], iconAnchor:[15,28],
-      html:'<div class="pin dim"><span>'+s.parcel+'</span></div>' });
+      html:'<div class="pin'+(pinClass(s, false) || " dim")+'"><span>'+s.parcel+'</span></div>' });
     const m = L.marker([s.lat,s.lng], { icon }).addTo(revLayer);
     if (showLabels){
       m.bindTooltip(stopTip(s), { permanent:true, direction:"right",
@@ -2452,6 +2473,49 @@ function initMap(){
 
 /* Address only. The number lives on the pin right beside this, and having it
    twice made the label longer for no gain. */
+/* What a pin's colour means. Everything the driver needs to judge at a glance
+   is "can I trust where this is", so that is what the colours say:
+     green  the one you just added
+     teal   a pin you placed by hand, so it is exactly where you say
+     amber  matched to a real street number
+     grey   only the street was found, the number is a guess
+   Plain mode turns all of that off and makes every stop amber. */
+const PIN_KINDS = [
+  { key:"fresh",  cls:"fresh",  label:"Just added" },
+  { key:"mine",   cls:"mine",   label:"Pin you placed" },
+  { key:"exact",  cls:"",       label:"Address matched" },
+  { key:"rough",  cls:"dim",    label:"Street only, check it" }
+];
+
+function pinKind(s, isFresh){
+  if (isFresh) return "fresh";
+  if (prefs.pinStyle === "plain") return "exact";
+  if (s.pinned) return "mine";
+  if (s.geoState === "ok" && s.geoPrecision === "approx") return "rough";
+  return "exact";
+}
+
+function pinClass(s, isFresh){
+  const k = pinKind(s, isFresh);
+  const found = PIN_KINDS.filter(x => x.key === k)[0];
+  return found && found.cls ? " " + found.cls : "";
+}
+
+function renderLegend(){
+  const box = $("mapLegend");
+  if (!box) return;
+  if (prefs.pinStyle === "plain"){ box.style.display = "none"; return; }
+  const list = displayList().filter(x => x.lat !== null);
+  const seen = {};
+  list.forEach(x => { seen[pinKind(x, x.id === focusStopId)] = (seen[pinKind(x, x.id === focusStopId)] || 0) + 1; });
+  const bits = PIN_KINDS.filter(k => seen[k.key]).map(k =>
+    '<span class="lg"><i class="pin-dot' + (k.cls ? " " + k.cls : "") + '"></i>' +
+    esc(k.label) + ' <b>' + seen[k.key] + '</b></span>');
+  if (depotPt) bits.push('<span class="lg"><i class="pin-dot depot"></i>Depot</span>');
+  box.innerHTML = bits.join("");
+  box.style.display = bits.length ? "flex" : "none";
+}
+
 function stopTip(s){
   return esc(s.street || "(no street)");
 }
@@ -2485,11 +2549,11 @@ function drawMap(){
   markerLayer.clearLayers();
   const list = displayList().filter(s => s.lat !== null);
   list.forEach((s,i) => {
-    const rough = s.geoState === "ok" && s.geoPrecision === "approx" && !s.pinned;
     const fresh = s.id === focusStopId;
+    const rough = pinKind(s, fresh) === "rough";
     const icon = L.divIcon({
       className:"", iconSize:fresh?[38,38]:[30,30], iconAnchor:fresh?[19,36]:[15,28], popupAnchor:[0,-26],
-      html:'<div class="pin'+(fresh?" fresh":(rough?" dim":""))+'"><span>'+(i+1)+'</span></div>'
+      html:'<div class="pin'+pinClass(s, fresh)+'"><span>'+(i+1)+'</span></div>'
     });
     const m = L.marker([s.lat,s.lng], { icon }).addTo(markerLayer);
     if (showLabels){
@@ -2504,7 +2568,11 @@ function drawMap(){
       '<div class="pop-btns">' +
         '<button class="mini go" data-go="'+s.id+'">Navigate</button>' +
         '<button class="mini done" data-done="'+s.id+'">Done</button>' +
+      '</div>' +
+      '<div class="pop-btns" style="margin-top:6px">' +
+        '<button class="mini edit" data-edit="'+s.id+'">Edit</button>' +
         '<button class="mini edit" data-place="'+s.id+'">Move pin</button>' +
+        '<button class="mini del" data-del="'+s.id+'">Remove</button>' +
       '</div>'
     );
   });
@@ -2523,6 +2591,7 @@ function drawMap(){
 
   /* only take the view when the set of pins actually changed and he has not
      started looking around for himself */
+  renderLegend();
   centreOnFocus();
   const key = list.map(s => s.id).join(",") + "|" + (fitDepot && depotPt ? "d" : "");
   if (focusStopId === null && (!fittedOnce || (key !== lastFitKey && !mapUserMoved))) fitAll(false);
@@ -2687,24 +2756,26 @@ document.addEventListener("click", e => {
   if (pl){ startPlacing(+pl); }
   else if (go){ navigateTo(byId(go)); }
   else if (dn){ const s = byId(dn); if (s){ s.done = true; s.doneSeq = ++doneCounter; s.doneAt = Date.now(); if (map) map.closePopup(); render(); } }
-  else if (ed){ openSheetById(+ed); }
+  else if (ed){ if (map) map.closePopup(); openSheetById(+ed); }
   else if (dl){
     /* an accidental brush of the X used to lose a parcel outright, so the
        button asks once. It disarms itself if he does not follow through. */
     if (prefs.confirmRemove && t.getAttribute("data-armed") !== "1"){
       t.setAttribute("data-armed", "1");
-      t.textContent = "Sure?";
+      t.setAttribute("data-was", t.textContent);
+      t.textContent = t.textContent === "\u2715" ? "Sure?" : "Remove for good?";
       t.classList.add("arm");
       setTimeout(()=>{
         if (t && t.getAttribute("data-armed") === "1"){
           t.removeAttribute("data-armed");
-          t.textContent = "\u2715";
+          t.textContent = t.getAttribute("data-was") || "\u2715";
           t.classList.remove("arm");
         }
       }, 3000);
       return;
     }
     const s = byId(dl);
+    if (map) map.closePopup();
     stops = stops.filter(x => x.id !== +dl);
     optOrder = null; view = "scan";
     render();
@@ -3656,6 +3727,11 @@ const PREF_UI = [
     note:"Stops the phone locking between parcels. Releases as soon as you stop the camera." },
 
   { group: "Map" },
+  { key:"pinStyle", type:"choice", label:"Pin colours",
+    options:[
+      ["status","Colour by how it was placed","Green is the one you just added, teal a pin you placed yourself, amber matched to a street number, grey street only so worth checking. A key appears above the map."],
+      ["plain","All the same","Every stop the same amber pin. Simpler to read when the run is dense."]
+    ] },
   { key:"mapLabels", type:"switch", label:"Addresses beside the pins",
     note:"Turn off if the map gets too crowded on a dense run." },
   { key:"fitDepot", type:"switch", label:"Include the depot when fitting the map",
@@ -3984,7 +4060,7 @@ window.__test = { parseLabel, parseStarTrack, parseTagged, parseLoose, titleCase
   scanBox, displayList, render, openSheet, closeSheet, startPlacing, dropPlacedPin, stopPlacing,
   fitAll, drawMap, drawReveal, openReveal, closeReveal, runGeoQueue, locateStop, suggestAddresses,
   startAdding, stopAdding, addStopAt, reverseLookup, unitSplit, joinUnit, suggestQuery, fitPoints,
-  makeResizer, edFields, setToggle, runStats, lifetimeStats, routeKm, legKm, fmtMins, renderStats, openStats, closeStats, previewPrefill, runToStops, activeForBackup, openRunInSession, currentRunEntry, showFault, fitDock, sourceLine, readAddressUnderPin, SOURCE_WORDS, focusStop, centreOnFocus, showMapTab, afterAdd,
+  makeResizer, edFields, setToggle, pinKind, pinClass, renderLegend, PIN_KINDS, runStats, lifetimeStats, routeKm, legKm, fmtMins, renderStats, openStats, closeStats, previewPrefill, runToStops, activeForBackup, openRunInSession, currentRunEntry, showFault, fitDock, sourceLine, readAddressUnderPin, SOURCE_WORDS, focusStop, centreOnFocus, showMapTab, afterAdd,
   get focusStopId(){ return focusStopId; }, set focusStopId(v){ focusStopId = v; }, anExample, refreshExample, EXAMPLE_ADDRESSES, nextGeoStop, cardStartPoint, waitingOnGeo, loadPrefs, savePrefs, setPref, applyPrefs,
   renderPrefRows, openSettings, closeSettings, holdScreen, maybeAutoCamera,
   PREF_DEFAULTS, PREF_UI, PREFS_KEY,
@@ -4019,7 +4095,7 @@ refreshExample();
    Pages caches the html, so after pushing an update it is easy to sit there
    testing the old one. The stamp says which build this is, and the button
    reloads past the cache. */
-const APP_VERSION = "2026-08-03.2";
+const APP_VERSION = "2026-08-03.3";
 $("verStamp").textContent = APP_VERSION;
 $("btnHardRefresh").addEventListener("click", ()=>{
   const base = location.href.split("?")[0].split("#")[0];
